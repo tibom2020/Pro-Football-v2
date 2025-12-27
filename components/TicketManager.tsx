@@ -47,6 +47,42 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     }
   };
 
+  const currentHandicap = useMemo(() => {
+    const isOverUnder = betType === 'Tài' || betType === 'Xỉu';
+    
+    if (isOverUnder) {
+      return latestOverOdds?.handicap;
+    }
+    
+    // Handle Home/Away handicap inversion
+    const rawHandicap = latestHomeOdds?.handicap;
+    if (rawHandicap === undefined || rawHandicap === null) {
+      return undefined;
+    }
+
+    if (betType === 'Đội nhà') {
+      return rawHandicap;
+    }
+
+    if (betType === 'Đội khách') {
+      const handicapNum = parseFloat(rawHandicap);
+      if (isNaN(handicapNum) || handicapNum === 0) {
+        return rawHandicap; // Return "0" or other non-numeric strings as is
+      }
+      
+      const invertedNum = -handicapNum;
+      
+      // Format back to string, ensuring '+' for positive values
+      const formatted = invertedNum.toFixed(2);
+      if (invertedNum > 0) {
+          return `+${formatted}`;
+      }
+      return formatted;
+    }
+
+    return undefined; // Should not be reached
+  }, [betType, latestOverOdds, latestHomeOdds]);
+
   const handleAddTicket = (e: React.FormEvent) => {
     e.preventDefault();
     const stakeNum = parseFloat(stake);
@@ -57,8 +93,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
       return;
     }
     
-    const isOverUnder = betType === 'Tài' || betType === 'Xỉu';
-    const handicap = isOverUnder ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
+    const handicap = currentHandicap;
 
     if (!handicap) {
         alert("Không tìm thấy kèo hiện tại cho loại cược này.");
@@ -106,10 +141,6 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
         saveAllTickets(updatedTickets);
     }
   };
-
-  // Calculate current handicap directly on render to ensure it's always up-to-date
-  const isOverUnderBet = betType === 'Tài' || betType === 'Xỉu';
-  const currentHandicap = isOverUnderBet ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
 
   const summary = useMemo(() => {
     return tickets.reduce((acc, ticket) => {
