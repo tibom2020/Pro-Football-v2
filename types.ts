@@ -87,10 +87,14 @@ export interface BetTicket {
   notes?: string;
 }
 
+// FIX: Create a dedicated interface for a single history item for better type inference and reusability.
+// Interface for a single history item
+export interface HistoryItem {
+  match: MatchInfo;
+  viewedAt: number;
+}
+
 // Interface for storing viewed match history
 export interface ViewedMatchHistory {
-  [matchId: string]: {
-    match: MatchInfo;
-    viewedAt: number;
-  };
+  [matchId: string]: HistoryItem;
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MatchInfo, ViewedMatchHistory } from '../types';
+import { MatchInfo, ViewedMatchHistory, HistoryItem } from '../types';
 import { Clock, ChevronRight, Trash2 } from 'lucide-react';
 
 interface MatchHistoryProps {
@@ -21,7 +21,8 @@ export const MatchHistory: React.FC<MatchHistoryProps> = ({ onSelectMatch }) => 
   }, []);
 
   const sortedHistory = useMemo(() => {
-    return Object.values(history).sort((a, b) => b.viewedAt - a.viewedAt);
+    // FIX: Explicitly type `a` and `b` to resolve TypeScript error where it infers them as `unknown`.
+    return Object.values(history).sort((a: HistoryItem, b: HistoryItem) => b.viewedAt - a.viewedAt);
   }, [history]);
   
   const handleClearHistory = () => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { BetTicket } from '../types';
+import { CheckCircle, XCircle, MinusCircle, Trash2 } from 'lucide-react';
 
 type FilterPeriod = 'day' | 'week' | 'month';
 
@@ -20,6 +21,23 @@ export const BetHistory: React.FC = () => {
       setAllTickets([]);
     }
   }, []);
+  
+  const handleUpdateStatus = (id: string, status: 'won' | 'lost' | 'push' | 'won_half' | 'lost_half') => {
+    const updatedTickets = allTickets.map(ticket =>
+      ticket.id === id ? { ...ticket, status } : ticket
+    );
+    setAllTickets(updatedTickets);
+    localStorage.setItem('betTickets', JSON.stringify(updatedTickets));
+  };
+
+  const handleDeleteTicket = (id: string) => {
+    if (window.confirm("Bạn có chắc muốn xóa vé cược này không?")) {
+        const updatedTickets = allTickets.filter(ticket => ticket.id !== id);
+        setAllTickets(updatedTickets);
+        localStorage.setItem('betTickets', JSON.stringify(updatedTickets));
+    }
+  };
+
 
   const filteredTickets = useMemo(() => {
     const now = new Date();
@@ -163,6 +181,17 @@ export const BetHistory: React.FC = () => {
                             )}
                         </div>
                     </div>
+                    {/* Action Buttons for Pending Tickets */}
+                    {ticket.status === 'pending' && (
+                        <div className="flex gap-2 items-center flex-wrap justify-end mt-2 pt-2 border-t border-dashed">
+                            <button onClick={() => handleUpdateStatus(ticket.id, 'won_half')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 font-semibold" title="Thắng nửa">Thắng ½</button>
+                            <button onClick={() => handleUpdateStatus(ticket.id, 'lost_half')} className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-md hover:bg-red-200 font-semibold" title="Thua nửa">Thua ½</button>
+                            <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200" title="Thắng"><CheckCircle className="w-4 h-4" /></button>
+                            <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200" title="Thua"><XCircle className="w-4 h-4" /></button>
+                            <button onClick={() => handleUpdateStatus(ticket.id, 'push')} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200" title="Hòa"><MinusCircle className="w-4 h-4" /></button>
+                            <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200" title="Xóa"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                    )}
                 </div>
              )
           })}
