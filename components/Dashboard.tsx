@@ -335,6 +335,62 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     return finalData;
   }, [homeOddsHistory]);
 
+  const calculateYAxisConfig = useCallback((chartData: { handicap?: number }[], minDomainValue: number | null) => {
+    const allHandicaps = chartData
+      .map(d => d.handicap)
+      .filter((h): h is number => typeof h === 'number' && isFinite(h));
+
+    // If there's no data, create a default range.
+    if (allHandicaps.length === 0) {
+      const defaultMin = minDomainValue ?? 0; // Use provided min, or 0 if null
+      const defaultTicks = [];
+      for (let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
+        if (defaultTicks.length > 100) break; // Safety break
+        defaultTicks.push(i);
+      }
+      return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
+    }
+    
+    // Determine the minimum value for the domain.
+    let minDomain: number;
+    if (minDomainValue !== null) {
+      minDomain = minDomainValue;
+    } else {
+      const minVal = Math.min(...allHandicaps);
+      // Round min DOWN to the nearest 0.25.
+      minDomain = Math.floor(minVal / 0.25) * 0.25;
+    }
+    
+    // Determine the maximum value for the domain.
+    const maxVal = Math.max(...allHandicaps);
+    // Round max UP to the nearest 0.25.
+    const maxDomain = Math.ceil(maxVal / 0.25) * 0.25;
+    
+    // Generate ticks based on the calculated domain.
+    const ticks = [];
+    for (let i = minDomain; i <= maxDomain; i = parseFloat((i + 0.25).toFixed(2))) {
+        if (ticks.length > 100) break; // Safety break
+        ticks.push(i);
+    }
+    
+    // Fallback if ticks are not generated properly.
+    if (ticks.length <= 1) {
+        const defaultMin = minDomainValue ?? 0;
+        const defaultTicks = [];
+        for(let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
+            if (defaultTicks.length > 100) break;
+            defaultTicks.push(i);
+        }
+        return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
+    }
+
+    return { domain: [minDomain, maxDomain], ticks };
+  }, []);
+
+  const overUnderYAxisConfig = useMemo(() => calculateYAxisConfig(marketChartData, 0.5), [marketChartData, calculateYAxisConfig]);
+  const homeAwayYAxisConfig = useMemo(() => calculateYAxisConfig(homeMarketChartData, null), [homeMarketChartData, calculateYAxisConfig]);
+
+
   const runPatternDetection = useCallback(async (aiScore: number, aiLevel: PreGoalAnalysis['level']) => {
     const currentMinute = parseInt(liveMatch.timer?.tm?.toString() || liveMatch.time || "0");
     if (!currentMinute || currentMinute < 10) return;
@@ -709,7 +765,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
                           <XAxis type="number" dataKey="minute" name="Phút" unit="'" domain={[0, 90]} ticks={[0, 15, 30, 45, 60, 75, 90]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
-                          <YAxis yAxisId="left" dataKey="handicap" name="HDP" width={45} domain={['dataMin - 0.25', 'dataMax + 0.25']} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} allowDecimals={true} tickCount={8} />
+                          <YAxis
+                            yAxisId="left"
+                            dataKey="handicap"
+                            name="HDP"
+                            width={45}
+                            domain={overUnderYAxisConfig.domain}
+                            ticks={overUnderYAxisConfig.ticks}
+                            tickFormatter={(tick) => tick.toFixed(2)}
+                            tick={{ fontSize: 10, fill: '#9ca3af' }}
+                            tickLine={false}
+                            axisLine={{ stroke: '#e5e7eb' }}
+                            allowDecimals={true}
+                          />
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
@@ -735,7 +803,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
                           <XAxis type="number" dataKey="minute" name="Phút" unit="'" domain={[0, 90]} ticks={[0, 15, 30, 45, 60, 75, 90]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
-                          <YAxis yAxisId="left" dataKey="handicap" name="HDP" width={45} domain={['dataMin - 0.25', 'dataMax + 0.25']} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} allowDecimals={true} tickCount={8} />
+                          <YAxis
+                            yAxisId="left"
+                            dataKey="handicap"
+                            name="HDP"
+                            width={45}
+                            domain={homeAwayYAxisConfig.domain}
+                            ticks={homeAwayYAxisConfig.ticks}
+                            tickFormatter={(tick) => tick.toFixed(2)}
+                            tick={{ fontSize: 10, fill: '#9ca3af' }}
+                            tickLine={false}
+                            axisLine={{ stroke: '#e5e7eb' }}
+                            allowDecimals={true}
+                          />
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
