@@ -65,10 +65,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const OddsColorLegent = () => (
-    <div className="flex items-center justify-center space-x-2 mt-3 text-xs text-gray-500">
-        <span>Tỷ lệ thấp</span>
-        <div className="w-24 h-2 rounded-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-500"></div>
-        <span>Tỷ lệ cao</span>
+    <div className="flex items-center justify-center space-x-4 mt-3 text-xs text-gray-500">
+        <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+            <span>Tăng (Money Out)</span>
+        </div>
+        <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-slate-400"></div>
+            <span>Ổn định</span>
+        </div>
+        <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <span>Giảm (Hot/Money In)</span>
+        </div>
     </div>
 );
 
@@ -283,17 +292,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
         const coloredPoints = points.map((point, index) => {
-            let color = '#f87171', colorName = 'red';
+            // Default to stable gray
+            let color = '#94a3b8'; // Slate-400
+            let colorName = 'gray';
+            
             if (index > 0) {
                 const diff = point.over - points[index - 1].over;
-                if (diff < -0.02) { color = '#facc15'; colorName = 'yellow'; }
-                else if (Math.abs(diff) <= 0.02) { color = '#4ade80'; colorName = 'green'; }
+                // Significant drop (> 0.01) -> Red (Hot/Money In)
+                if (diff < -0.01) { 
+                    color = '#ef4444'; // Red-500
+                    colorName = 'red'; 
+                }
+                // Significant rise (> 0.01) -> Green (Drift/Payout Up)
+                else if (diff > 0.01) { 
+                    color = '#10b981'; // Emerald-500
+                    colorName = 'green'; 
+                }
             }
             return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
         });
+        
+        // Highlight logic tracking 'red' (hot) streaks
         for (let i = 0; i <= coloredPoints.length - 3; i++) {
             const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
-            if (b3.minute - b1.minute < 5 && (b1.colorName === 'yellow' || b1.colorName === 'green') && b1.colorName === b2.colorName && b2.colorName === b3.colorName && !b1.highlight) {
+            // If we have 3 consecutive red (drop) points close together
+            if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
@@ -312,23 +335,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
         const coloredPoints = points.map((point, index) => {
-            let color = '#f87171', colorName = 'red';
+            let color = '#94a3b8'; // Slate-400
+            let colorName = 'gray';
             const handicapValue = parseFloat(point.handicap);
+            
             if (index > 0) {
                 const diff = point.home - points[index - 1].home;
-                if (handicapValue < 0) {
-                    if (diff < -0.02) { color = '#facc15'; colorName = 'yellow'; }
-                    else if (Math.abs(diff) <= 0.02) { color = '#4ade80'; colorName = 'green'; }
-                } else {
-                    if (diff > 0.02) { color = '#facc15'; colorName = 'yellow'; }
-                    else if (Math.abs(diff) <= 0.02) { color = '#4ade80'; colorName = 'green'; }
+                // For match winner, odds drop always means money coming in for that side
+                if (diff < -0.01) {
+                    color = '#ef4444'; // Red-500 (Hot)
+                    colorName = 'red';
+                } else if (diff > 0.01) {
+                    color = '#10b981'; // Emerald-500 (Drift)
+                    colorName = 'green';
                 }
             }
             return { ...point, handicap: handicapValue, color, colorName, highlight: false };
         });
+        
+        // Highlight streaks
         for (let i = 0; i <= coloredPoints.length - 3; i++) {
             const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
-            if (b3.minute - b1.minute < 5 && (b1.colorName === 'yellow' || b1.colorName === 'green') && b1.colorName === b2.colorName && b2.colorName === b3.colorName && !b1.highlight) {
+            if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
@@ -491,7 +519,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         };
         const getBubbleIntensity = (chartData: any[], minute: number, range: number) => {
             const minT = Math.max(0, minute - range);
-            return chartData.filter(b => b.minute >= minT && b.minute <= minute && (b.colorName==='green' || b.colorName==='yellow' || b.highlight))
+            // Count RED bubbles (odds drops) as pressure/intensity
+            return chartData.filter(b => b.minute >= minT && b.minute <= minute && (b.colorName==='red' || b.highlight))
                             .reduce((acc, b) => acc + (b.highlight ? 1.6 : 1.0), 0);
         };
         const apiMomentum = getAPIMomentumAt(currentMinute, 5);
