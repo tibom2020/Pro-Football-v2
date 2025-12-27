@@ -3,6 +3,32 @@ import { BetTicket } from '../types';
 
 type FilterPeriod = 'day' | 'week' | 'month';
 
+// Helper function to format handicap for display based on bet type
+// This is duplicated from TicketManager for simplicity. In a larger app, this would be in a shared utils file.
+const getDisplayHandicap = (betType: BetTicket['betType'], handicap: string): string => {
+    if (betType === 'Tài' || betType === 'Xỉu') {
+        return handicap;
+    }
+
+    const num = parseFloat(handicap);
+    if (isNaN(num)) return handicap; // Handle non-numeric handicaps like "PK"
+
+    if (betType === 'Đội nhà') {
+        // Explicitly show sign for home team
+        return num > 0 ? `+${handicap}` : handicap;
+    }
+    
+    if (betType === 'Đội khách') {
+        const awayNum = -num;
+        const awayStr = String(awayNum);
+        // Explicitly show sign for away team
+        return awayNum > 0 ? `+${awayStr}` : awayStr;
+    }
+
+    return handicap; // Fallback
+};
+
+
 export const BetHistory: React.FC = () => {
   const [allTickets, setAllTickets] = useState<BetTicket[]>([]);
   const [filter, setFilter] = useState<FilterPeriod>('day');
@@ -127,7 +153,7 @@ export const BetHistory: React.FC = () => {
                     <div className="flex justify-between items-start">
                         <div>
                             <div className="font-semibold text-xs text-gray-500 truncate max-w-[200px]">{ticket.matchName}</div>
-                            <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap} @{ticket.odds.toFixed(2)}</div>
+                            <div className="font-bold text-gray-800">{ticket.betType} {getDisplayHandicap(ticket.betType, ticket.handicap)} @{ticket.odds.toFixed(2)}</div>
                         </div>
                         <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${pill.className}`}>
                             {pill.text}

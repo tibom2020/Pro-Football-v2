@@ -9,6 +9,30 @@ interface TicketManagerProps {
   latestHomeOdds?: { handicap: string };
 }
 
+// Helper function to format handicap for display based on bet type
+const getDisplayHandicap = (betType: BetTicket['betType'], handicap: string): string => {
+    if (betType === 'Tài' || betType === 'Xỉu') {
+        return handicap;
+    }
+
+    const num = parseFloat(handicap);
+    if (isNaN(num)) return handicap; // Handle non-numeric handicaps like "PK"
+
+    if (betType === 'Đội nhà') {
+        // Explicitly show sign for home team
+        return num > 0 ? `+${handicap}` : handicap;
+    }
+    
+    if (betType === 'Đội khách') {
+        const awayNum = -num;
+        const awayStr = String(awayNum);
+        // Explicitly show sign for away team
+        return awayNum > 0 ? `+${awayStr}` : awayStr;
+    }
+
+    return handicap; // Fallback
+};
+
 export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverOdds, latestHomeOdds }) => {
   const [tickets, setTickets] = useState<BetTicket[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -58,6 +82,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     }
     
     const isOverUnder = betType === 'Tài' || betType === 'Xỉu';
+    // Always get the raw handicap from the API perspective
     const handicap = isOverUnder ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
 
     if (!handicap) {
@@ -70,7 +95,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
       matchId: match.id,
       matchName: `${match.home.name} vs ${match.away.name}`, // Store match name
       betType,
-      handicap,
+      handicap, // Save the raw handicap
       odds: oddsNum,
       stake: stakeNum,
       minute: match.timer?.tm || parseInt(match.time),
@@ -107,9 +132,15 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     }
   };
 
-  // Calculate current handicap directly on render to ensure it's always up-to-date
-  const isOverUnderBet = betType === 'Tài' || betType === 'Xỉu';
-  const currentHandicap = isOverUnderBet ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
+  // Calculate the handicap to display in the form, applying perspective logic.
+  const currentHandicapForDisplay = useMemo(() => {
+    const isOverUnder = betType === 'Tài' || betType === 'Xỉu';
+    const rawHandicap = isOverUnder ? latestOverOdds?.handicap : latestHomeOdds?.handicap;
+
+    if (!rawHandicap) return 'N/A';
+    
+    return getDisplayHandicap(betType, rawHandicap);
+  }, [betType, latestOverOdds, latestHomeOdds]);
 
   const summary = useMemo(() => {
     return tickets.reduce((acc, ticket) => {
@@ -165,7 +196,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">Kèo hiện tại</label>
-              <input type="text" readOnly value={currentHandicap || 'N/A'} className="w-full mt-1 p-2 border bg-gray-200 border-gray-300 rounded-md text-sm cursor-not-allowed" />
+              <input type="text" readOnly value={currentHandicapForDisplay} className="w-full mt-1 p-2 border bg-gray-200 border-gray-300 rounded-md text-sm cursor-not-allowed" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -218,7 +249,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
               <div key={ticket.id} className="border border-gray-200 rounded-lg p-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap}</div>
+                    <div className="font-bold text-gray-800">{ticket.betType} {getDisplayHandicap(ticket.betType, ticket.handicap)}</div>
                     <div className="text-xs text-gray-500">@{ticket.minute}' - Tỷ lệ {ticket.odds.toFixed(2)}</div>
                   </div>
                   <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${pill.className}`}>
