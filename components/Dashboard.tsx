@@ -469,18 +469,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                 setStatsHistory(prev => ({ ...prev, [currentTime]: currentParsedStats }));
             }
             
-            const currentMinute = updatedDetails.timer?.tm;
-            if (currentMinute && !isAIPredicting) {
-                const lastAnalysisMinute = latestAnalysis?.minute;
-                
-                const shouldPredict = lastAnalysisMinute === undefined
-                    ? currentMinute >= 10
-                    : currentMinute >= lastAnalysisMinute + 10;
-
-                if (shouldPredict) {
-                    fetchGeminiPrediction();
-                }
-            }
+            // Automatic AI prediction logic removed as per user request to switch to manual mode.
+            // Analysis is now triggered only by clicking the "TrendingUp" icon.
         }
         
         const updatedOdds = await getMatchOdds(token, liveMatch.id);
@@ -512,7 +502,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     } finally {
         setIsRefreshing(false);
     }
-  }, [token, liveMatch.id, latestAnalysis, runPatternDetection, fetchGeminiPrediction, isAIPredicting]); 
+  }, [token, liveMatch.id, latestAnalysis, runPatternDetection]); 
   
   useEffect(() => {
     let isMounted = true;
