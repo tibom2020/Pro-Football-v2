@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
@@ -20,6 +19,10 @@ interface AllHighlights {
 interface ShotEvent {
     minute: number;
     type: 'on' | 'off';
+}
+interface GameEvent {
+  minute: number;
+  type: 'goal' | 'corner';
 }
 
 interface DashboardProps {
@@ -171,6 +174,43 @@ const ShotBalls = ({ shots, containerWidth }: { shots: ShotEvent[], containerWid
     </>;
 };
 
+const GameEventMarkers = ({ events, containerWidth }: { events: GameEvent[], containerWidth?: number }) => {
+    if (!containerWidth || events.length === 0) return null;
+    
+    const calculateLeft = (minute: number) => {
+        const yAxisLeftWidth = 45;
+        const yAxisRightWidth = 35;
+        const chartAreaWidth = containerWidth - yAxisLeftWidth - yAxisRightWidth;
+        const leftOffset = yAxisLeftWidth;
+        return leftOffset + (minute / 90) * chartAreaWidth;
+    };
+
+    return <>
+        {events.map((event, i) => {
+            let className = '';
+            let icon = '';
+            if (event.type === 'goal') {
+                className = 'game-event-goal';
+                icon = '⚽';
+            } else if (event.type === 'corner') {
+                className = 'game-event-corner';
+                icon = '🚩';
+            }
+
+            return (
+                <div
+                    key={`${event.type}-${event.minute}-${i}`}
+                    className={`game-event-icon ${className}`}
+                    style={{ left: `${calculateLeft(event.minute)}px` }}
+                    title={`${event.type.charAt(0).toUpperCase() + event.type.slice(1)} at ${event.minute}'`}
+                >
+                    {icon}
+                </div>
+            );
+        })}
+    </>;
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) => {
   // AUTO_REFRESH_INTERVAL_MS is for match details and odds (every 40s)
   const AUTO_REFRESH_INTERVAL_MS = 40000; // 40 seconds for individual match auto-refresh
@@ -183,7 +223,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const [statsHistory, setStatsHistory] = useState<Record<number, ProcessedStats>>({});
   const [highlights, setHighlights] = useState<AllHighlights>({ overUnder: [], homeOdds: [] });
   const [shotEvents, setShotEvents] = useState<ShotEvent[]>([]);
+  const [gameEvents, setGameEvents] = useState<GameEvent[]>([]);
   const [analysisHistory, setAnalysisHistory] = useState<PreGoalAnalysis[]>([]);
+  const prevMatchState = useRef<MatchInfo | null>(null);
   
   const stats = useMemo(() => parseStats(liveMatch.stats), [liveMatch.stats]);
   const latestAnalysis = useMemo(() => analysisHistory[0] || null, [analysisHistory]);
@@ -198,6 +240,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
     const savedAnalysis = localStorage.getItem(`analysisHistory_${match.id}`);
     if (savedAnalysis) setAnalysisHistory(JSON.parse(savedAnalysis)); else setAnalysisHistory([]);
+
+    const savedGameEvents = localStorage.getItem(`gameEvents_${match.id}`);
+    if (savedGameEvents) setGameEvents(JSON.parse(savedGameEvents)); else setGameEvents([]);
 
   }, [match.id]);
 
@@ -218,6 +263,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         localStorage.setItem(`analysisHistory_${match.id}`, JSON.stringify(analysisHistory));
     }
   }, [analysisHistory, match.id]);
+
+  useEffect(() => {
+    if (gameEvents.length > 0) {
+        localStorage.setItem(`gameEvents_${match.id}`, JSON.stringify(gameEvents));
+    }
+  }, [gameEvents, match.id]);
 
 
   const marketChartData = useMemo(() => {
@@ -498,6 +549,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       setShotEvents(newShots);
   }, [statsHistory]);
 
+  useEffect(() => {
+    if (prevMatchState.current) {
+        const currentMinute = liveMatch.timer?.tm || parseInt(liveMatch.time || '0');
+        if (!currentMinute) return;
+
+        const newEvents: GameEvent[] = [];
+
+        // Goal detection
+        const prevTotalScore = (prevMatchState.current.ss || '0-0').split('-').map(Number).reduce((a, b) => a + b, 0);
+        const currentTotalScore = (liveMatch.ss || '0-0').split('-').map(Number).reduce((a, b) => a + b, 0);
+
+        if (currentTotalScore > prevTotalScore) {
+            for (let i = 0; i < currentTotalScore - prevTotalScore; i++) {
+                 newEvents.push({ minute: currentMinute, type: 'goal' });
+            }
+        }
+
+        // Corner detection
+        const prevStats = parseStats(prevMatchState.current.stats);
+        const currentStats = parseStats(liveMatch.stats);
+        const prevTotalCorners = prevStats.corners[0] + prevStats.corners[1];
+        const currentTotalCorners = currentStats.corners[0] + currentStats.corners[1];
+
+        if (currentTotalCorners > prevTotalCorners) {
+            for (let i = 0; i < currentTotalCorners - prevTotalCorners; i++) {
+                newEvents.push({ minute: currentMinute, type: 'corner' });
+            }
+        }
+        
+        if (newEvents.length > 0) {
+            setGameEvents(prev => [...prev, ...newEvents]);
+        }
+    }
+    prevMatchState.current = liveMatch;
+  }, [liveMatch]);
+
 
   const scoreParts = (liveMatch.ss || "0-0").split("-");
   
@@ -644,6 +731,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                   <OverlayContainer>
                       <HighlightBands highlights={highlights.overUnder} />
                       <ShotBalls shots={shotEvents} />
+                      <GameEventMarkers events={gameEvents} />
                   </OverlayContainer>
                   <OddsColorLegent />
               </div>
@@ -669,6 +757,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                    <OverlayContainer>
                       <HighlightBands highlights={highlights.homeOdds} />
                       <ShotBalls shots={shotEvents} />
+                      <GameEventMarkers events={gameEvents} />
                   </OverlayContainer>
                   <OddsColorLegent />
               </div>
