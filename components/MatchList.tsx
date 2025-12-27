@@ -1,11 +1,10 @@
-
 import React from 'react';
 import { MatchInfo } from '../types';
 import { Clock, ChevronRight, Search } from 'lucide-react';
 
 interface MatchListProps {
   events: MatchInfo[];
-  onSelectMatch: (id: string) => void;
+  onSelectMatch: (match: MatchInfo) => void;
   isLoading: boolean;
   searchQuery: string;
   onSearchChange: (query: string) => void;
@@ -37,7 +36,7 @@ export const MatchList: React.FC<MatchListProps> = ({ events, onSelectMatch, isL
         events.map((event) => (
           <div 
             key={event.id}
-            onClick={() => onSelectMatch(event.id)}
+            onClick={() => onSelectMatch(event)}
             className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 active:bg-gray-50 transition-colors cursor-pointer"
           >
             <div className="flex justify-between items-start mb-3">

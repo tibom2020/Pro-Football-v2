@@ -86,3 +86,11 @@ export interface BetTicket {
   createdAt: number; // Added for date filtering
   notes?: string;
 }
+
+// Interface for storing viewed match history
+export interface ViewedMatchHistory {
+  [matchId: string]: {
+    match: MatchInfo;
+    viewedAt: number;
+  };
+}

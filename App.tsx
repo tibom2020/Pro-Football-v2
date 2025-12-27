@@ -1,11 +1,11 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MatchList } from './components/MatchList';
 import { Dashboard } from './components/Dashboard';
-import { BetHistory } from './components/BetHistory'; // Import the new component
+import { BetHistory } from './components/BetHistory';
+import { MatchHistory } from './components/MatchHistory'; // Import the new component
 import { MatchInfo } from './types';
 import { getInPlayEvents, getMatchDetails } from './services/api';
-import { KeyRound, ShieldCheck, RefreshCw, List, History } from 'lucide-react';
+import { KeyRound, ShieldCheck, RefreshCw, List, History, ClipboardList } from 'lucide-react'; // Added ClipboardList
 
 const App = () => {
   const REFRESH_INTERVAL_MS = 60000; // Increased to 60s refresh interval for the match list
@@ -17,7 +17,7 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [mainView, setMainView] = useState<'matches' | 'history'>('matches'); // State to control view
+  const [mainView, setMainView] = useState<'matches' | 'betHistory' | 'matchHistory'>('matches'); // Updated state
 
   // Load token from local storage on mount
   useEffect(() => {
@@ -98,15 +98,8 @@ const App = () => {
     }
   };
 
-  const handleSelectMatch = async (id: string) => {
-    // Optimistic selection from list
-    const matchFromList = events.find(e => e.id === id);
-    if (matchFromList) setCurrentMatch(matchFromList);
-    
-    // Fetch full details (if needed separately)
-    // Note: getMatchDetails also uses the rate limit, so this won't spam the API
-    const details = await getMatchDetails(token, id);
-    if (details) setCurrentMatch(details);
+  const handleSelectMatch = (match: MatchInfo) => {
+    setCurrentMatch(match);
   };
 
   const handleLogout = () => {
@@ -130,6 +123,15 @@ const App = () => {
       event.league.name.toLowerCase().includes(lowercasedQuery)
     );
   }, [events, searchQuery]);
+
+  const getHeaderText = () => {
+    switch(mainView) {
+      case 'matches': return 'Trận đấu trực tiếp';
+      case 'betHistory': return 'Lịch sử cược';
+      case 'matchHistory': return 'Lịch sử xem';
+      default: return 'Live Matches';
+    }
+  };
 
   if (!hasToken) {
     return (
@@ -180,7 +182,7 @@ const App = () => {
     <div className="min-h-screen bg-gray-50 max-w-md mx-auto shadow-2xl overflow-hidden">
       <div className="bg-white px-5 py-4 sticky top-0 z-10 border-b border-gray-100 flex justify-between items-center">
         <h1 className="text-xl font-black text-slate-800 tracking-tight">
-          {mainView === 'matches' ? 'Live Matches' : 'Lịch sử cược'}
+          {getHeaderText()}
         </h1>
         <div className="flex items-center space-x-3">
             {mainView === 'matches' && (
@@ -197,11 +199,18 @@ const App = () => {
                 <List className="w-5 h-5" />
               </button>
               <button 
-                onClick={() => setMainView('history')} 
-                className={`p-1.5 rounded-full transition-colors ${mainView === 'history' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+                onClick={() => setMainView('betHistory')} 
+                className={`p-1.5 rounded-full transition-colors ${mainView === 'betHistory' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
                 aria-label="Lịch sử cược"
               >
                 <History className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setMainView('matchHistory')} 
+                className={`p-1.5 rounded-full transition-colors ${mainView === 'matchHistory' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+                aria-label="Lịch sử xem"
+              >
+                <ClipboardList className="w-5 h-5" />
               </button>
             </div>
             <button onClick={handleLogout} className="text-xs text-red-500 font-medium">Logout</button>
@@ -219,7 +228,7 @@ const App = () => {
                 </p>
             </div>
         )}
-        {mainView === 'matches' ? (
+        {mainView === 'matches' && (
           <MatchList 
             events={filteredEvents} 
             onSelectMatch={handleSelectMatch} 
@@ -227,9 +236,9 @@ const App = () => {
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
           />
-        ) : (
-          <BetHistory />
         )}
+        {mainView === 'betHistory' && <BetHistory />}
+        {mainView === 'matchHistory' && <MatchHistory onSelectMatch={handleSelectMatch} />}
       </div>
     </div>
   );

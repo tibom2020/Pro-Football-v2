@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData } from '../types';
+import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
@@ -256,6 +256,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     if (savedGameEvents) setGameEvents(JSON.parse(savedGameEvents)); else setGameEvents([]);
 
   }, [match.id]);
+  
+  // Save match to viewed history
+  useEffect(() => {
+    try {
+        const historyStr = localStorage.getItem('viewedMatchesHistory');
+        const history: ViewedMatchHistory = historyStr ? JSON.parse(historyStr) : {};
+
+        history[match.id] = {
+            match: liveMatch, // Use the most recent version of match data
+            viewedAt: Date.now(),
+        };
+
+        localStorage.setItem('viewedMatchesHistory', JSON.stringify(history));
+    } catch (e) {
+        console.error("Failed to update viewed matches history:", e);
+    }
+  }, [match.id, liveMatch]);
 
   useEffect(() => {
      if (Object.keys(statsHistory).length > 0) {
