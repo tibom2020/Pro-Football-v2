@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { BetTicket, MatchInfo } from '../types';
 import { Plus, Trash2, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
@@ -7,14 +6,18 @@ interface TicketManagerProps {
   match: MatchInfo;
   latestOverOdds?: { handicap: string };
   latestHomeOdds?: { handicap: string };
+  // Fix: Add props for first-half odds to resolve type error in Dashboard.tsx
+  latestH1OverOdds?: { handicap: string };
+  latestH1HomeOdds?: { handicap: string };
 }
 
-export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverOdds, latestHomeOdds }) => {
+export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverOdds, latestHomeOdds, latestH1HomeOdds, latestH1OverOdds }) => {
   const [tickets, setTickets] = useState<BetTicket[]>([]);
   const [showForm, setShowForm] = useState(false);
   
   // Form State
-  const [betType, setBetType] = useState<'Tài' | 'Xỉu' | 'Đội nhà' | 'Đội khách'>('Tài');
+  // Fix: Expand betType state to include first-half (H1) bet types.
+  const [betType, setBetType] = useState<'Tài' | 'Xỉu' | 'Đội nhà' | 'Đội khách' | 'Tài H1' | 'Xỉu H1' | 'Đội nhà H1' | 'Đội khách H1'>('Tài');
   const [stake, setStake] = useState('');
   const [odds, setOdds] = useState('');
   const [notes, setNotes] = useState('');
@@ -47,24 +50,26 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     }
   };
 
+  // Fix: Update handicap calculation to use H1 odds when H1 bet types are selected.
   const currentHandicap = useMemo(() => {
-    const isOverUnder = betType === 'Tài' || betType === 'Xỉu';
+    const isOverUnder = betType.includes('Tài') || betType.includes('Xỉu');
+    const isH1 = betType.includes('H1');
     
     if (isOverUnder) {
-      return latestOverOdds?.handicap;
+      return isH1 ? latestH1OverOdds?.handicap : latestOverOdds?.handicap;
     }
     
     // Handle Home/Away handicap inversion
-    const rawHandicap = latestHomeOdds?.handicap;
+    const rawHandicap = isH1 ? latestH1HomeOdds?.handicap : latestHomeOdds?.handicap;
     if (rawHandicap === undefined || rawHandicap === null) {
       return undefined;
     }
 
-    if (betType === 'Đội nhà') {
+    if (betType.includes('Đội nhà')) {
       return rawHandicap;
     }
 
-    if (betType === 'Đội khách') {
+    if (betType.includes('Đội khách')) {
       const handicapNum = parseFloat(rawHandicap);
       if (isNaN(handicapNum) || handicapNum === 0) {
         return rawHandicap; // Return "0" or other non-numeric strings as is
@@ -81,7 +86,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     }
 
     return undefined; // Should not be reached
-  }, [betType, latestOverOdds, latestHomeOdds]);
+  }, [betType, latestOverOdds, latestHomeOdds, latestH1HomeOdds, latestH1OverOdds]);
 
   const handleAddTicket = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,6 +195,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-gray-600">Loại cược</label>
+              {/* Fix: Add H1 options to dropdown menu */}
               <select 
                 value={betType} 
                 onChange={e => setBetType(e.target.value as any)}
@@ -199,6 +205,10 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
                 <option>Xỉu</option>
                 <option>Đội nhà</option>
                 <option>Đội khách</option>
+                <option>Tài H1</option>
+                <option>Xỉu H1</option>
+                <option>Đội nhà H1</option>
+                <option>Đội khách H1</option>
               </select>
             </div>
             <div>

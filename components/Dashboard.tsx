@@ -220,6 +220,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const [isAIPredicting, setIsAIPredicting] = useState(false); // New state for AI prediction loading
   const [oddsHistory, setOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string }[]>([]);
   const [homeOddsHistory, setHomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
+  const [h1HomeOddsHistory, setH1HomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
+  const [h1OverUnderOddsHistory, setH1OverUnderOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string }[]>([]);
   const [statsHistory, setStatsHistory] = useState<Record<number, ProcessedStats>>({});
   const [highlights, setHighlights] = useState<AllHighlights>({ overUnder: [], homeOdds: [] });
   const [shotEvents, setShotEvents] = useState<ShotEvent[]>([]);
@@ -445,6 +447,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         setOddsHistory(tempOddsHistory);
         setHomeOddsHistory(tempHomeOddsHistory);
 
+        const tempH1OverUnderHistory = latestOddsData?.results?.odds?.['1_6']
+            ?.filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
+            .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+            .sort((a, b) => a.minute - b.minute) || h1OverUnderOddsHistory;
+
+        const tempH1HomeHistory = latestOddsData?.results?.odds?.['1_5']
+            ?.filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
+            .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+            .sort((a,b) => a.minute - b.minute) || h1HomeOddsHistory;
+        
+        setH1OverUnderOddsHistory(tempH1OverUnderHistory);
+        setH1HomeOddsHistory(tempH1HomeHistory);
+
         const currentMinute = parseInt(latestDetails?.timer?.tm?.toString() || latestDetails?.time || "0");
         const homeScore = parseInt((latestDetails?.ss || "0-0").split("-")[0]);
         const awayScore = parseInt((latestDetails?.ss || "0-0").split("-")[1]);
@@ -510,7 +525,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     } finally {
         setIsAIPredicting(false);
     }
-  }, [token, liveMatch.id, oddsHistory, homeOddsHistory, statsHistory, marketChartData, homeMarketChartData, runPatternDetection]);
+  }, [token, liveMatch.id, oddsHistory, homeOddsHistory, h1HomeOddsHistory, h1OverUnderOddsHistory, statsHistory, marketChartData, homeMarketChartData, runPatternDetection]);
 
 
   const handleRefresh = useCallback(async () => {
@@ -546,6 +561,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                     .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
                     .sort((a,b) => a.minute - b.minute);
                 setHomeOddsHistory(newHomeHistory);
+            }
+            
+            const h1OverMarkets = updatedOdds.results?.odds?.['1_6'];
+            if (h1OverMarkets) {
+                const newH1History = h1OverMarkets
+                    .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
+                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+                    .sort((a, b) => a.minute - b.minute);
+                setH1OverUnderOddsHistory(newH1History);
+            }
+
+            const h1HomeMarkets = updatedOdds.results?.odds?.['1_5'];
+            if (h1HomeMarkets) {
+                const newH1HomeHistory = h1HomeMarkets
+                    .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
+                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+                    .sort((a,b) => a.minute - b.minute);
+                setH1HomeOddsHistory(newH1HomeHistory);
             }
         }
         
@@ -756,6 +789,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
           oddsHistory={oddsHistory}
           homeOddsHistory={homeOddsHistory}
           apiChartData={apiChartData}
+          h1HomeOddsHistory={h1HomeOddsHistory}
+          h1OverUnderOddsHistory={h1OverUnderOddsHistory}
         />
 
         {(marketChartData.length > 0 || apiChartData.length > 0) && (
@@ -848,6 +883,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             match={liveMatch} 
             latestOverOdds={oddsHistory[oddsHistory.length - 1]}
             latestHomeOdds={homeOddsHistory[homeOddsHistory.length - 1]}
+            latestH1OverOdds={h1OverUnderOddsHistory[h1OverUnderOddsHistory.length - 1]}
+            latestH1HomeOdds={h1HomeOddsHistory[h1HomeOddsHistory.length - 1]}
         />
       </div>
     </div>

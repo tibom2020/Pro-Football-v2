@@ -38,6 +38,8 @@ export interface OddsData {
     odds: {
       "1_2": OddsItem[]; // Match Winner / Handicap
       "1_3": OddsItem[]; // Over/Under
+      "1_5"?: OddsItem[]; // 1st Half Asian Handicap
+      "1_6"?: OddsItem[]; // 1st Half Goal Line
     };
   };
 }
@@ -75,7 +77,7 @@ export interface BetTicket {
   id: string;
   matchId: string;
   matchName: string; // Added to display in history
-  betType: 'Tài' | 'Xỉu' | 'Đội nhà' | 'Đội khách';
+  betType: 'Tài' | 'Xỉu' | 'Đội nhà' | 'Đội khách' | 'Tài H1' | 'Xỉu H1' | 'Đội nhà H1' | 'Đội khách H1';
   handicap: string;
   odds: number;
   stake: number;
