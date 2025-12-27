@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { BetTicket, MatchInfo } from '../types';
-import { Plus, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
 
 interface TicketManagerProps {
   match: MatchInfo;
@@ -91,7 +91,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     setBetType('Tài');
   };
 
-  const handleUpdateStatus = (id: string, status: 'won' | 'lost') => {
+  const handleUpdateStatus = (id: string, status: 'won' | 'lost' | 'push' | 'won_half' | 'lost_half') => {
     const updatedTickets = tickets.map(ticket => 
       ticket.id === id ? { ...ticket, status } : ticket
     );
@@ -120,6 +120,10 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
             acc.totalPL += (ticket.stake * ticket.odds) - ticket.stake;
         } else if (ticket.status === 'lost') {
             acc.totalPL -= ticket.stake;
+        } else if (ticket.status === 'won_half') {
+            acc.totalPL += ((ticket.stake * ticket.odds) - ticket.stake) / 2;
+        } else if (ticket.status === 'lost_half') {
+            acc.totalPL -= ticket.stake / 2;
         }
         return acc;
     }, { totalStake: 0, pendingStake: 0, totalPL: 0 });
@@ -130,6 +134,9 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
         case 'pending': return { text: 'Đang chờ', className: "bg-yellow-100 text-yellow-800" };
         case 'won': return { text: 'Thắng', className: "bg-green-100 text-green-800" };
         case 'lost': return { text: 'Thua', className: "bg-red-100 text-red-800" };
+        case 'push': return { text: 'Hòa', className: "bg-gray-100 text-gray-800" };
+        case 'won_half': return { text: 'Thắng 1/2', className: "bg-green-100 text-green-800" };
+        case 'lost_half': return { text: 'Thua 1/2', className: "bg-red-100 text-red-800" };
         default: return { text: '', className: 'bg-gray-100 text-gray-800' };
     }
   }
@@ -237,12 +244,24 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
                     {ticket.status === 'lost' && (
                       <div className="text-xs font-bold text-red-600">Lỗ: -{ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                     )}
+                    {ticket.status === 'push' && (
+                      <div className="text-xs font-bold text-gray-600">Hoàn tiền: {ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                    {ticket.status === 'won_half' && (
+                      <div className="text-xs font-bold text-green-600">Lãi: +{((ticket.stake * ticket.odds - ticket.stake) / 2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
+                    {ticket.status === 'lost_half' && (
+                      <div className="text-xs font-bold text-red-600">Lỗ: -{(ticket.stake / 2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                    )}
                   </div>
                   {ticket.status === 'pending' ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200"><CheckCircle className="w-4 h-4" /></button>
-                      <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200"><XCircle className="w-4 h-4" /></button>
-                      <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>
+                    <div className="flex gap-2 items-center flex-wrap justify-end">
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'won_half')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 font-semibold" title="Thắng nửa">Thắng ½</button>
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'lost_half')} className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-md hover:bg-red-200 font-semibold" title="Thua nửa">Thua ½</button>
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200" title="Thắng"><CheckCircle className="w-4 h-4" /></button>
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200" title="Thua"><XCircle className="w-4 h-4" /></button>
+                      <button onClick={() => handleUpdateStatus(ticket.id, 'push')} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200" title="Hòa"><MinusCircle className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ) : (
                     <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>

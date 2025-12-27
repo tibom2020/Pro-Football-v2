@@ -59,6 +59,10 @@ export const BetHistory: React.FC = () => {
                 acc.totalPL += (ticket.stake * ticket.odds) - ticket.stake;
             } else if (ticket.status === 'lost') {
                 acc.totalPL -= ticket.stake;
+            } else if (ticket.status === 'won_half') {
+                acc.totalPL += ((ticket.stake * ticket.odds) - ticket.stake) / 2;
+            } else if (ticket.status === 'lost_half') {
+                acc.totalPL -= ticket.stake / 2;
             }
         }
         return acc;
@@ -70,6 +74,9 @@ export const BetHistory: React.FC = () => {
         case 'pending': return { text: 'Đang chờ', className: "bg-yellow-100 text-yellow-800" };
         case 'won': return { text: 'Thắng', className: "bg-green-100 text-green-800" };
         case 'lost': return { text: 'Thua', className: "bg-red-100 text-red-800" };
+        case 'push': return { text: 'Hòa', className: "bg-gray-100 text-gray-800" };
+        case 'won_half': return { text: 'Thắng 1/2', className: "bg-green-100 text-green-800" };
+        case 'lost_half': return { text: 'Thua 1/2', className: "bg-red-100 text-red-800" };
         default: return { text: '', className: 'bg-gray-100 text-gray-800' };
     }
   }
@@ -144,6 +151,15 @@ export const BetHistory: React.FC = () => {
                             )}
                             {ticket.status === 'lost' && (
                                 <div className="text-xs font-bold text-red-600">Lỗ: -{ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            )}
+                            {ticket.status === 'push' && (
+                                <div className="text-xs font-bold text-gray-600">Hoàn tiền</div>
+                            )}
+                            {ticket.status === 'won_half' && (
+                                <div className="text-xs font-bold text-green-600">Lãi: +{((ticket.stake * ticket.odds - ticket.stake) / 2).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            )}
+                             {ticket.status === 'lost_half' && (
+                                <div className="text-xs font-bold text-red-600">Lỗ: -{(ticket.stake / 2).toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
                             )}
                         </div>
                     </div>

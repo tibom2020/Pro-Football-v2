@@ -80,7 +80,7 @@ export interface BetTicket {
   odds: number;
   stake: number;
   minute: number;
-  status: 'pending' | 'won' | 'lost';
+  status: 'pending' | 'won' | 'lost' | 'push' | 'won_half' | 'lost_half';
   createdAt: number; // Added for date filtering
   notes?: string;
 }
