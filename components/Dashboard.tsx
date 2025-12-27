@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
-import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable'; // Import the new component
 import { TicketManager } from './TicketManager'; // Import the new TicketManager component
 
@@ -764,6 +764,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
               <div className="relative h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
+                          <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
                           <XAxis type="number" dataKey="minute" name="Phút" unit="'" domain={[0, 90]} ticks={[0, 15, 30, 45, 60, 75, 90]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
                           <YAxis
                             yAxisId="left"
@@ -802,6 +803,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
               <div className="relative h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
+                          <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
                           <XAxis type="number" dataKey="minute" name="Phút" unit="'" domain={[0, 90]} ticks={[0, 15, 30, 45, 60, 75, 90]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
                           <YAxis
                             yAxisId="left"
