@@ -68,12 +68,14 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
     const newTicket: BetTicket = {
       id: Date.now().toString(),
       matchId: match.id,
+      matchName: `${match.home.name} vs ${match.away.name}`, // Store match name
       betType,
       handicap,
       odds: oddsNum,
       stake: stakeNum,
       minute: match.timer?.tm || parseInt(match.time),
       status: 'pending',
+      createdAt: Date.now(), // Store creation timestamp
       notes,
     };
 

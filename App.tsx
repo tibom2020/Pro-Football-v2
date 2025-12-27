@@ -2,9 +2,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MatchList } from './components/MatchList';
 import { Dashboard } from './components/Dashboard';
+import { BetHistory } from './components/BetHistory'; // Import the new component
 import { MatchInfo } from './types';
 import { getInPlayEvents, getMatchDetails } from './services/api';
-import { KeyRound, ShieldCheck, RefreshCw } from 'lucide-react';
+import { KeyRound, ShieldCheck, RefreshCw, List, History } from 'lucide-react';
 
 const App = () => {
   const REFRESH_INTERVAL_MS = 60000; // Increased to 60s refresh interval for the match list
@@ -16,6 +17,7 @@ const App = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mainView, setMainView] = useState<'matches' | 'history'>('matches'); // State to control view
 
   // Load token from local storage on mount
   useEffect(() => {
@@ -114,6 +116,7 @@ const App = () => {
     setError(null);
     setCurrentMatch(null);
     setToken('');
+    setMainView('matches'); // Reset to default view on logout
   }
   
   const filteredEvents = useMemo(() => {
@@ -176,17 +179,37 @@ const App = () => {
   return (
     <div className="min-h-screen bg-gray-50 max-w-md mx-auto shadow-2xl overflow-hidden">
       <div className="bg-white px-5 py-4 sticky top-0 z-10 border-b border-gray-100 flex justify-between items-center">
-        <h1 className="text-xl font-black text-slate-800 tracking-tight">Live Matches</h1>
+        <h1 className="text-xl font-black text-slate-800 tracking-tight">
+          {mainView === 'matches' ? 'Live Matches' : 'Lịch sử cược'}
+        </h1>
         <div className="flex items-center space-x-3">
-            <button onClick={fetchEventsData} disabled={loading} className="p-2 -mr-2 text-gray-600 hover:bg-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed">
-              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+            {mainView === 'matches' && (
+              <button onClick={fetchEventsData} disabled={loading} className="p-2 text-gray-600 hover:bg-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed">
+                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+            <div className="flex items-center bg-gray-100 rounded-full p-1">
+              <button 
+                onClick={() => setMainView('matches')} 
+                className={`p-1.5 rounded-full transition-colors ${mainView === 'matches' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+                aria-label="Danh sách trận đấu"
+              >
+                <List className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setMainView('history')} 
+                className={`p-1.5 rounded-full transition-colors ${mainView === 'history' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
+                aria-label="Lịch sử cược"
+              >
+                <History className="w-5 h-5" />
+              </button>
+            </div>
             <button onClick={handleLogout} className="text-xs text-red-500 font-medium">Logout</button>
         </div>
       </div>
       
       <div className="p-4">
-        {error && (
+        {error && mainView === 'matches' && (
             <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-md" role="alert">
                 <p className="font-bold">Lỗi</p>
                 {/* Render the error message directly */}
@@ -196,13 +219,17 @@ const App = () => {
                 </p>
             </div>
         )}
-        <MatchList 
-          events={filteredEvents} 
-          onSelectMatch={handleSelectMatch} 
-          isLoading={loading && events.length === 0 && !error}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
+        {mainView === 'matches' ? (
+          <MatchList 
+            events={filteredEvents} 
+            onSelectMatch={handleSelectMatch} 
+            isLoading={loading && events.length === 0 && !error}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
+        ) : (
+          <BetHistory />
+        )}
       </div>
     </div>
   );

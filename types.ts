@@ -74,11 +74,13 @@ export interface AIPredictionResponse {
 export interface BetTicket {
   id: string;
   matchId: string;
+  matchName: string; // Added to display in history
   betType: 'Tài' | 'Xỉu' | 'Đội nhà' | 'Đội khách';
   handicap: string;
   odds: number;
   stake: number;
   minute: number;
   status: 'pending' | 'won' | 'lost';
+  createdAt: number; // Added for date filtering
   notes?: string;
 }
