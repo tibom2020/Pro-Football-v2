@@ -153,6 +153,10 @@ export const BetHistory: React.FC = () => {
                         <div>
                             <div className="font-semibold text-xs text-gray-500 truncate max-w-[200px]">{ticket.matchName}</div>
                             <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap} @{ticket.odds.toFixed(2)}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                                Phút {ticket.minute}'
+                                {ticket.scoreAtBet && <span className="ml-2">Tỷ số {ticket.scoreAtBet}</span>}
+                            </div>
                         </div>
                         <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${pill.className}`}>
                             {pill.text}

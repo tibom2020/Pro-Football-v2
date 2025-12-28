@@ -82,6 +82,7 @@ export interface BetTicket {
   odds: number;
   stake: number;
   minute: number;
+  scoreAtBet?: string; // Score at the time of betting
   status: 'pending' | 'won' | 'lost' | 'push' | 'won_half' | 'lost_half';
   createdAt: number; // Added for date filtering
   notes?: string;

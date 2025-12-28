@@ -114,6 +114,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
       odds: oddsNum,
       stake: stakeNum,
       minute: match.timer?.tm || parseInt(match.time),
+      scoreAtBet: match.ss,
       status: 'pending',
       createdAt: Date.now(), // Store creation timestamp
       notes,
@@ -267,7 +268,7 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap}</div>
-                    <div className="text-xs text-gray-500">@{ticket.minute}' - Tỷ lệ {ticket.odds.toFixed(2)}</div>
+                    <div className="text-xs text-gray-500">@{ticket.minute}' {ticket.scoreAtBet ? `(${ticket.scoreAtBet})` : ''} - Tỷ lệ {ticket.odds.toFixed(2)}</div>
                   </div>
                   <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${pill.className}`}>
                     {pill.text}
