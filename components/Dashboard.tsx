@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
-import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info, Activity } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid, Area, ReferenceLine } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable';
 import { TicketManager } from './TicketManager';
@@ -90,7 +90,25 @@ const OddsColorLegent = () => (
     </div>
 );
 
-// --- Custom Dot Component for API Lines ---
+const OddsPulse = ({ data, type }: { data: any[], type: 'ou' | 'hdp' }) => {
+    if (!data || data.length === 0) return null;
+    const lastTwo = data.slice(-2).reverse(); 
+
+    return (
+        <div className="flex items-center gap-3">
+            {lastTwo.map((p, i) => (
+                <div key={i} className={`flex items-baseline gap-1 ${i === 1 ? 'opacity-40 grayscale' : 'opacity-100'}`}>
+                    <span className="text-[10px] text-gray-400 font-bold">'{p.minute}</span>
+                    <span className="text-[10px] text-gray-500 font-black">[{p.handicap}]</span>
+                    <span className={`text-xs font-black ${i === 0 ? (p.colorName === 'red' ? 'text-red-500' : p.colorName === 'green' ? 'text-emerald-500' : 'text-slate-600') : 'text-slate-500'}`}>
+                        {type === 'ou' ? p.over.toFixed(3) : p.home.toFixed(3)}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const CustomApiDot = (props: any) => {
     const { cx, cy, stroke, index, data } = props;
     if (index !== data.length - 1) return null;
@@ -103,7 +121,6 @@ const CustomApiDot = (props: any) => {
     );
 };
 
-// --- API Calculation ---
 const calculateAPIScore = (stats: ProcessedStats | undefined, sideIndex: 0 | 1): number => {
     if (!stats) return 0;
     const onTarget = stats.on_target[sideIndex];
@@ -114,7 +131,6 @@ const calculateAPIScore = (stats: ProcessedStats | undefined, sideIndex: 0 | 1):
     return (shots * 1.0) + (onTarget * 3.0) + (corners * 0.7) + (dangerous * 0.1);
 };
 
-// --- Overlay Components ---
 const OverlayContainer = ({ children }: { children?: React.ReactNode }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
@@ -193,61 +209,33 @@ const ShotBalls = ({ shots, containerWidth }: { shots: ShotEvent[], containerWid
     </>;
 };
 
-const GameEventMarkers = ({ events, containerWidth }: { events: GameEvent[], containerWidth?: number }) => {
-    if (!containerWidth || events.length === 0) return null;
-    
-    const calculateLeft = (minute: number) => {
-        const yAxisLeftWidth = 45;
-        const yAxisRightWidth = 35;
-        const chartAreaWidth = containerWidth - yAxisLeftWidth - yAxisRightWidth;
-        const leftOffset = yAxisLeftWidth;
-        return leftOffset + (minute / 90) * chartAreaWidth;
-    };
-
-    return <>
-        {events.map((event, i) => {
-            let className = '';
-            let icon = '';
-            if (event.type === 'goal') { className = 'game-event-goal'; icon = '⚽'; }
-            else if (event.type === 'corner') { className = 'game-event-corner'; icon = '🚩'; }
-            return (
-                <div key={`${event.type}-${event.minute}-${i}`} className={`game-event-icon ${className}`} style={{ left: `${calculateLeft(event.minute)}px` }}>
-                    {icon}
-                </div>
-            );
-        })}
-    </>;
-};
-
 export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) => {
   const AUTO_REFRESH_INTERVAL_MS = 40000;
 
   const [liveMatch, setLiveMatch] = useState<MatchInfo>(match);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAIPredicting, setIsAIPredicting] = useState(false); 
-  const [oddsHistory, setOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string }[]>([]);
-  const [homeOddsHistory, setHomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
-  const [h1HomeOddsHistory, setH1HomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
-  const [h1OverUnderOddsHistory, setH1OverUnderOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string }[]>([]);
+  const [oddsHistory, setOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string; add_time: number }[]>([]);
+  const [homeOddsHistory, setHomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string; add_time: number }[]>([]);
+  const [h1HomeOddsHistory, setH1HomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string; add_time: number }[]>([]);
+  const [h1OverUnderOddsHistory, setH1OverUnderOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string; add_time: number }[]>([]);
   const [statsHistory, setStatsHistory] = useState<Record<number, ProcessedStats>>({});
   const [highlights, setHighlights] = useState<AllHighlights>({ overUnder: [], homeOdds: [] });
   const [shotEvents, setShotEvents] = useState<ShotEvent[]>([]);
   const [gameEvents, setGameEvents] = useState<GameEvent[]>([]);
   const [analysisHistory, setAnalysisHistory] = useState<PreGoalAnalysis[]>([]);
-  const prevMatchState = useRef<MatchInfo | null>(null);
   
   const stats = useMemo(() => parseStats(liveMatch.stats), [liveMatch.stats]);
-  const latestAnalysis = useMemo(() => analysisHistory[0] || null, [analysisHistory]);
 
   useEffect(() => {
     const savedStats = localStorage.getItem(`statsHistory_${match.id}`);
-    if (savedStats) setStatsHistory(JSON.parse(savedStats)); else setStatsHistory({});
+    if (savedStats) setStatsHistory(JSON.parse(savedStats));
     const savedHighlights = localStorage.getItem(`highlights_${match.id}`);
-    if (savedHighlights) setHighlights(JSON.parse(savedHighlights)); else setHighlights({ overUnder: [], homeOdds: [] });
+    if (savedHighlights) setHighlights(JSON.parse(savedHighlights));
     const savedAnalysis = localStorage.getItem(`analysisHistory_${match.id}`);
-    if (savedAnalysis) setAnalysisHistory(JSON.parse(savedAnalysis)); else setAnalysisHistory([]);
+    if (savedAnalysis) setAnalysisHistory(JSON.parse(savedAnalysis));
     const savedGameEvents = localStorage.getItem(`gameEvents_${match.id}`);
-    if (savedGameEvents) setGameEvents(JSON.parse(savedGameEvents)); else setGameEvents([]);
+    if (savedGameEvents) setGameEvents(JSON.parse(savedGameEvents));
   }, [match.id]);
   
   useEffect(() => {
@@ -259,67 +247,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     } catch (e) { console.error(e); }
   }, [match.id, liveMatch]);
 
-  useEffect(() => {
-     if (Object.keys(statsHistory).length > 0) localStorage.setItem(`statsHistory_${match.id}`, JSON.stringify(statsHistory));
-  }, [statsHistory, match.id]);
+  useEffect(() => { if (Object.keys(statsHistory).length > 0) localStorage.setItem(`statsHistory_${match.id}`, JSON.stringify(statsHistory)); }, [statsHistory, match.id]);
+  useEffect(() => { if (highlights.overUnder.length > 0 || highlights.homeOdds.length > 0) localStorage.setItem(`highlights_${match.id}`, JSON.stringify(highlights)); }, [highlights, match.id]);
+  useEffect(() => { if (analysisHistory.length > 0) localStorage.setItem(`analysisHistory_${match.id}`, JSON.stringify(analysisHistory)); }, [analysisHistory, match.id]);
+  useEffect(() => { if (gameEvents.length > 0) localStorage.setItem(`gameEvents_${match.id}`, JSON.stringify(gameEvents)); }, [gameEvents, match.id]);
 
-  useEffect(() => {
-    if (highlights.overUnder.length > 0 || highlights.homeOdds.length > 0) localStorage.setItem(`highlights_${match.id}`, JSON.stringify(highlights));
-  }, [highlights, match.id]);
-
-  useEffect(() => {
-    if (analysisHistory.length > 0) localStorage.setItem(`analysisHistory_${match.id}`, JSON.stringify(analysisHistory));
-  }, [analysisHistory, match.id]);
-
-  useEffect(() => {
-    if (gameEvents.length > 0) localStorage.setItem(`gameEvents_${match.id}`, JSON.stringify(gameEvents));
-  }, [gameEvents, match.id]);
-
-  const marketChartData = useMemo(() => {
+  // Robust coloring logic helper
+  const processMarketData = (history: any[], valueKey: 'over' | 'home') => {
     const dataByHandicap: Record<string, any[]> = {};
-    oddsHistory.forEach(p => {
-        if (!dataByHandicap[p.handicap]) dataByHandicap[p.handicap] = [];
-        dataByHandicap[p.handicap].push(p);
+    
+    // 1. Group by Normalized Handicap (e.g., "2.5" and "2.50" become "2.50")
+    history.forEach(p => {
+        const handicapNum = parseFloat(p.handicap);
+        const normalizedKey = isNaN(handicapNum) ? p.handicap : handicapNum.toFixed(2);
+        if (!dataByHandicap[normalizedKey]) dataByHandicap[normalizedKey] = [];
+        dataByHandicap[normalizedKey].push(p);
     });
+
     const finalData: any[] = [];
     for (const handicapKey in dataByHandicap) {
-        const points = dataByHandicap[handicapKey];
+        // 2. Ensure each group is strictly sorted by timestamp (add_time)
+        const points = dataByHandicap[handicapKey].sort((a, b) => a.add_time - b.add_time);
+        
         const coloredPoints = points.map((point, index) => {
             let color = '#94a3b8'; let colorName = 'gray';
             if (index > 0) {
-                const diff = point.over - points[index - 1].over;
-                if (diff < -0.01) { color = '#ef4444'; colorName = 'red'; }
-                else if (diff > 0.01) { color = '#10b981'; colorName = 'green'; }
+                const prevVal = points[index - 1][valueKey];
+                const currVal = point[valueKey];
+                const diff = currVal - prevVal;
+                
+                // Color Rules: Red = Dropping (Hot), Green = Rising (Cold)
+                if (diff < -0.001) { color = '#ef4444'; colorName = 'red'; }
+                else if (diff > 0.001) { color = '#10b981'; colorName = 'green'; }
             }
-            return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
+            return { 
+                ...point, 
+                handicap: parseFloat(point.handicap), 
+                color, 
+                colorName, 
+                highlight: false 
+            };
         });
         finalData.push(...coloredPoints);
     }
-    return finalData;
-  }, [oddsHistory]);
+    // Sort final data by minute for Recharts rendering consistency
+    return finalData.sort((a, b) => a.minute - b.minute || a.add_time - b.add_time);
+  };
 
-  const homeMarketChartData = useMemo(() => {
-    const dataByHandicap: Record<string, any[]> = {};
-    homeOddsHistory.forEach(p => {
-        if (!dataByHandicap[p.handicap]) dataByHandicap[p.handicap] = [];
-        dataByHandicap[p.handicap].push(p);
-    });
-    const finalData: any[] = [];
-    for (const handicapKey in dataByHandicap) {
-        const points = dataByHandicap[handicapKey];
-        const coloredPoints = points.map((point, index) => {
-            let color = '#94a3b8'; let colorName = 'gray';
-            if (index > 0) {
-                const diff = point.home - points[index - 1].home;
-                if (diff < -0.01) { color = '#ef4444'; colorName = 'red'; }
-                else if (diff > 0.01) { color = '#10b981'; colorName = 'green'; }
-            }
-            return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
-        });
-        finalData.push(...coloredPoints);
-    }
-    return finalData;
-  }, [homeOddsHistory]);
+  const marketChartData = useMemo(() => processMarketData(oddsHistory, 'over'), [oddsHistory]);
+  const homeMarketChartData = useMemo(() => processMarketData(homeOddsHistory, 'home'), [homeOddsHistory]);
 
   const apiChartData = useMemo(() => {
       const sortedMinutes = Object.keys(statsHistory).map(Number).sort((a, b) => a - b);
@@ -354,10 +330,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         }
         const updatedOdds = await getMatchOdds(token, liveMatch.id);
         if (updatedOdds) {
+            const mapper = (m: any) => ({ 
+                minute: parseInt(m.time_str), 
+                over: parseFloat(m.over_od || '0'), 
+                under: parseFloat(m.under_od || '0'), 
+                home: parseFloat(m.home_od || '0'),
+                away: parseFloat(m.away_od || '0'),
+                handicap: m.handicap!, 
+                add_time: parseInt(m.add_time || '0')
+            });
+
             const overMarkets = updatedOdds.results?.odds?.['1_3'];
-            if (overMarkets) setOddsHistory(overMarkets.filter(m => m.time_str && m.over_od && m.under_od && m.handicap).map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! })).sort((a, b) => a.minute - b.minute));
+            if (overMarkets) setOddsHistory(overMarkets.filter(m => m.time_str && m.over_od && m.handicap).map(mapper));
+            
             const homeMarkets = updatedOdds.results?.odds?.['1_2'];
-            if (homeMarkets) setHomeOddsHistory(homeMarkets.filter(m => m.time_str && m.home_od && m.away_od && m.handicap).map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! })).sort((a,b) => a.minute - b.minute));
+            if (homeMarkets) setHomeOddsHistory(homeMarkets.filter(m => m.time_str && m.home_od && m.handicap).map(mapper));
         }
     } catch (error) { console.error(error); } finally { setIsRefreshing(false); }
   }, [token, liveMatch.id]); 
@@ -465,7 +452,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         {/* --- Biểu đồ 1: Over/Under Market + API Lines --- */}
         {(marketChartData.length > 0 || apiChartData.length > 0) && (
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mt-4">
-              <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" />Thị trường Tài/Xỉu & Dòng thời gian API</h3>
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-emerald-500" />Tài/Xỉu</h3>
+                <OddsPulse data={marketChartData} type="ou" />
+              </div>
               <div className="relative h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
@@ -488,7 +478,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
           </div>
         )}
 
-        {/* --- BIỂU ĐỒ MỚI: ĐỘNG LỰC TẤN CÔNG (GAP API) --- */}
+        {/* --- BIỂU ĐỒ: ĐỘNG LỰC TẤN CÔNG (GAP API) --- */}
         {apiChartData.length > 0 && (
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex justify-between items-center mb-4">
@@ -521,18 +511,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           />
                       </ComposedChart>
                   </ResponsiveContainer>
-                  {/* Nhãn Đội nhà/Khách trên biểu đồ GAP */}
                   <div className="absolute top-2 left-10 text-[9px] font-bold text-blue-500 opacity-60">Home more threatening ↑</div>
                   <div className="absolute bottom-6 left-10 text-[9px] font-bold text-orange-500 opacity-60">Away more threatening ↓</div>
               </div>
-              <div className="mt-2 text-[10px] text-center text-gray-400 italic font-medium">Biểu đồ thể hiện sự chênh lệch áp lực (Gap) giữa 2 đội</div>
           </div>
         )}
 
         {/* --- Biểu đồ 2: Handicap Market + API Lines --- */}
         {(homeMarketChartData.length > 0 || apiChartData.length > 0) && (
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-purple-500" />Tỷ lệ Handicap & Dòng thời gian API</h3>
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-purple-500" />Handicap</h3>
+                <OddsPulse data={homeMarketChartData} type="hdp" />
+              </div>
               <div className="relative h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
@@ -566,8 +557,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             match={liveMatch} 
             latestOverOdds={oddsHistory[oddsHistory.length - 1]}
             latestHomeOdds={homeOddsHistory[homeOddsHistory.length - 1]}
-            latestH1OverOdds={h1OverUnderOddsHistory[h1OverUnderOddsHistory.length - 1]}
-            latestH1HomeOdds={h1HomeOddsHistory[h1HomeOddsHistory.length - 1]}
         />
       </div>
     </div>
