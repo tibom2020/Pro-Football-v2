@@ -1,7 +1,6 @@
 
-
 import React, { useMemo } from 'react';
-import { MatchInfo, ProcessedStats } from '../types';
+import { MatchInfo } from '../types';
 
 interface LiveStatsTableProps {
   liveMatch: MatchInfo;
@@ -20,21 +19,19 @@ export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
   h1HomeOddsHistory,
   h1OverUnderOddsHistory,
 }) => {
-  const currentMinute = useMemo(() => liveMatch.timer?.tm || liveMatch.time || '0', [liveMatch.timer, liveMatch.time]);
-
   const latestOdds = useMemo(() => {
-    if (oddsHistory.length === 0) return null;
-    return oddsHistory[oddsHistory.length - 1]; // Get the last (latest) entry
+    if (!oddsHistory || oddsHistory.length === 0) return null;
+    return oddsHistory[oddsHistory.length - 1];
   }, [oddsHistory]);
 
   const latestHomeOdds = useMemo(() => {
-    if (homeOddsHistory.length === 0) return null;
-    return homeOddsHistory[homeOddsHistory.length - 1]; // Get the last (latest) entry
+    if (!homeOddsHistory || homeOddsHistory.length === 0) return null;
+    return homeOddsHistory[homeOddsHistory.length - 1];
   }, [homeOddsHistory]);
 
   const latestApiScores = useMemo(() => {
-    if (apiChartData.length === 0) return null;
-    return apiChartData[apiChartData.length - 1]; // Get the last (latest) entry
+    if (!apiChartData || apiChartData.length === 0) return null;
+    return apiChartData[apiChartData.length - 1];
   }, [apiChartData]);
 
   const latestH1HomeOdds = useMemo(() => {

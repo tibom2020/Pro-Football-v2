@@ -252,11 +252,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   useEffect(() => { if (analysisHistory.length > 0) localStorage.setItem(`analysisHistory_${match.id}`, JSON.stringify(analysisHistory)); }, [analysisHistory, match.id]);
   useEffect(() => { if (gameEvents.length > 0) localStorage.setItem(`gameEvents_${match.id}`, JSON.stringify(gameEvents)); }, [gameEvents, match.id]);
 
-  // Robust coloring logic helper
   const processMarketData = (history: any[], valueKey: 'over' | 'home') => {
     const dataByHandicap: Record<string, any[]> = {};
-    
-    // 1. Group by Normalized Handicap (e.g., "2.5" and "2.50" become "2.50")
     history.forEach(p => {
         const handicapNum = parseFloat(p.handicap);
         const normalizedKey = isNaN(handicapNum) ? p.handicap : handicapNum.toFixed(2);
@@ -266,31 +263,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
     const finalData: any[] = [];
     for (const handicapKey in dataByHandicap) {
-        // 2. Ensure each group is strictly sorted by timestamp (add_time)
         const points = dataByHandicap[handicapKey].sort((a, b) => a.add_time - b.add_time);
-        
         const coloredPoints = points.map((point, index) => {
             let color = '#94a3b8'; let colorName = 'gray';
             if (index > 0) {
                 const prevVal = points[index - 1][valueKey];
                 const currVal = point[valueKey];
                 const diff = currVal - prevVal;
-                
-                // Color Rules: Red = Dropping (Hot), Green = Rising (Cold)
                 if (diff < -0.001) { color = '#ef4444'; colorName = 'red'; }
                 else if (diff > 0.001) { color = '#10b981'; colorName = 'green'; }
             }
-            return { 
-                ...point, 
-                handicap: parseFloat(point.handicap), 
-                color, 
-                colorName, 
-                highlight: false 
-            };
+            return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
         });
         finalData.push(...coloredPoints);
     }
-    // Sort final data by minute for Recharts rendering consistency
     return finalData.sort((a, b) => a.minute - b.minute || a.add_time - b.add_time);
   };
 
@@ -341,10 +327,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             });
 
             const overMarkets = updatedOdds.results?.odds?.['1_3'];
-            if (overMarkets) setOddsHistory(overMarkets.filter(m => m.time_str && m.over_od && m.handicap).map(mapper));
+            if (overMarkets) setOddsHistory(overMarkets.filter(m => m.time_str && m.over_od && m.handicap).map(mapper).sort((a,b) => a.add_time - b.add_time));
             
             const homeMarkets = updatedOdds.results?.odds?.['1_2'];
-            if (homeMarkets) setHomeOddsHistory(homeMarkets.filter(m => m.time_str && m.home_od && m.handicap).map(mapper));
+            if (homeMarkets) setHomeOddsHistory(homeMarkets.filter(m => m.time_str && m.home_od && m.handicap).map(mapper).sort((a,b) => a.add_time - b.add_time));
+
+            const h1HomeMarkets = updatedOdds.results?.odds?.['1_5'];
+            if (h1HomeMarkets) setH1HomeOddsHistory(h1HomeMarkets.filter(m => m.time_str && m.home_od && m.handicap).map(mapper).sort((a,b) => a.add_time - b.add_time));
+
+            const h1OverMarkets = updatedOdds.results?.odds?.['1_6'];
+            if (h1OverMarkets) setH1OverUnderOddsHistory(h1OverMarkets.filter(m => m.time_str && m.over_od && m.handicap).map(mapper).sort((a,b) => a.add_time - b.add_time));
         }
     } catch (error) { console.error(error); } finally { setIsRefreshing(false); }
   }, [token, liveMatch.id]); 
@@ -557,6 +549,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             match={liveMatch} 
             latestOverOdds={oddsHistory[oddsHistory.length - 1]}
             latestHomeOdds={homeOddsHistory[homeOddsHistory.length - 1]}
+            latestH1OverOdds={h1OverUnderOddsHistory[h1OverUnderOddsHistory.length - 1]}
+            latestH1HomeOdds={h1HomeOddsHistory[h1HomeOddsHistory.length - 1]}
         />
       </div>
     </div>
