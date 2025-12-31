@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
-import { LiveStatsTable } from './LiveStatsTable'; // Import the new component
-import { TicketManager } from './TicketManager'; // Import the new TicketManager component
+import { LiveStatsTable } from './LiveStatsTable';
+import { TicketManager } from './TicketManager';
 
 // --- Types for Highlights and Shots ---
 interface Highlight {
@@ -81,6 +82,33 @@ const OddsColorLegent = () => (
     </div>
 );
 
+// --- Custom Dot Component for API Lines ---
+const CustomApiDot = (props: any) => {
+    const { cx, cy, stroke, index, data } = props;
+    // Only show dot on the very last point
+    if (index !== data.length - 1) return null;
+    
+    return (
+        <g>
+            <circle 
+                cx={cx} 
+                cy={cy} 
+                r={6} 
+                fill="white" 
+                stroke={stroke} 
+                strokeWidth={3} 
+                style={{ filter: 'drop-shadow(0px 0px 4px rgba(0,0,0,0.3))' }}
+            />
+            <circle 
+                cx={cx} 
+                cy={cy} 
+                r={2} 
+                fill={stroke} 
+            />
+        </g>
+    );
+};
+
 // --- API Calculation ---
 const calculateAPIScore = (stats: ProcessedStats | undefined, sideIndex: 0 | 1): number => {
     if (!stats) return 0;
@@ -141,7 +169,7 @@ const HighlightBands = ({ highlights, containerWidth }: { highlights: Highlight[
                 className={`goal-highlight`} 
                 style={{ 
                     left: `${calculateLeft(h.minute)}px`,
-                    backgroundColor: getHighlightColor(h.level) // Apply color directly
+                    backgroundColor: getHighlightColor(h.level) 
                 }}
             >
                 <div className={`highlight-label label-color-${h.level}`}>{h.label}</div>
@@ -158,7 +186,7 @@ const ShotBalls = ({ shots, containerWidth }: { shots: ShotEvent[], containerWid
         const yAxisRightWidth = 35;
         const chartAreaWidth = containerWidth - yAxisLeftWidth - yAxisRightWidth;
         const leftOffset = yAxisLeftWidth;
-        return leftOffset + (minute / 90) * chartAreaWidth - 10; // Center the ball (20px wide)
+        return leftOffset + (minute / 90) * chartAreaWidth - 10; 
     };
 
     const shotsByMinute = shots.reduce((acc, shot) => {
@@ -221,12 +249,11 @@ const GameEventMarkers = ({ events, containerWidth }: { events: GameEvent[], con
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) => {
-  // AUTO_REFRESH_INTERVAL_MS is for match details and odds (every 40s)
-  const AUTO_REFRESH_INTERVAL_MS = 40000; // 40 seconds for individual match auto-refresh
+  const AUTO_REFRESH_INTERVAL_MS = 40000;
 
   const [liveMatch, setLiveMatch] = useState<MatchInfo>(match);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isAIPredicting, setIsAIPredicting] = useState(false); // New state for AI prediction loading
+  const [isAIPredicting, setIsAIPredicting] = useState(false); 
   const [oddsHistory, setOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string }[]>([]);
   const [homeOddsHistory, setHomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
   const [h1HomeOddsHistory, setH1HomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
@@ -241,7 +268,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const stats = useMemo(() => parseStats(liveMatch.stats), [liveMatch.stats]);
   const latestAnalysis = useMemo(() => analysisHistory[0] || null, [analysisHistory]);
 
-  // --- Persistence Effects ---
   useEffect(() => {
     const savedStats = localStorage.getItem(`statsHistory_${match.id}`);
     if (savedStats) setStatsHistory(JSON.parse(savedStats)); else setStatsHistory({});
@@ -257,14 +283,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
   }, [match.id]);
   
-  // Save match to viewed history
   useEffect(() => {
     try {
         const historyStr = localStorage.getItem('viewedMatchesHistory');
         const history: ViewedMatchHistory = historyStr ? JSON.parse(historyStr) : {};
 
         history[match.id] = {
-            match: liveMatch, // Use the most recent version of match data
+            match: liveMatch, 
             viewedAt: Date.now(),
         };
 
@@ -309,30 +334,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
         const coloredPoints = points.map((point, index) => {
-            // Default to stable gray
-            let color = '#94a3b8'; // Slate-400
+            let color = '#94a3b8'; 
             let colorName = 'gray';
             
             if (index > 0) {
                 const diff = point.over - points[index - 1].over;
-                // Significant drop (> 0.01) -> Red (Hot/Money In)
                 if (diff < -0.01) { 
-                    color = '#ef4444'; // Red-500
+                    color = '#ef4444'; 
                     colorName = 'red'; 
                 }
-                // Significant rise (> 0.01) -> Green (Drift/Payout Up)
                 else if (diff > 0.01) { 
-                    color = '#10b981'; // Emerald-500
+                    color = '#10b981'; 
                     colorName = 'green'; 
                 }
             }
             return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
         });
         
-        // Highlight logic tracking 'red' (hot) streaks
         for (let i = 0; i <= coloredPoints.length - 3; i++) {
             const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
-            // If we have 3 consecutive red (drop) points close together
             if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
@@ -352,25 +372,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
         const coloredPoints = points.map((point, index) => {
-            let color = '#94a3b8'; // Slate-400
+            let color = '#94a3b8'; 
             let colorName = 'gray';
             const handicapValue = parseFloat(point.handicap);
             
             if (index > 0) {
                 const diff = point.home - points[index - 1].home;
-                // For match winner, odds drop always means money coming in for that side
                 if (diff < -0.01) {
-                    color = '#ef4444'; // Red-500 (Hot)
+                    color = '#ef4444'; 
                     colorName = 'red';
                 } else if (diff > 0.01) {
-                    color = '#10b981'; // Emerald-500 (Drift)
+                    color = '#10b981'; 
                     colorName = 'green';
                 }
             }
             return { ...point, handicap: handicapValue, color, colorName, highlight: false };
         });
         
-        // Highlight streaks
         for (let i = 0; i <= coloredPoints.length - 3; i++) {
             const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
             if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
@@ -387,40 +405,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       .map(d => d.handicap)
       .filter((h): h is number => typeof h === 'number' && isFinite(h));
 
-    // If there's no data, create a default range.
     if (allHandicaps.length === 0) {
-      const defaultMin = minDomainValue ?? 0; // Use provided min, or 0 if null
+      const defaultMin = minDomainValue ?? 0; 
       const defaultTicks = [];
       for (let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
-        if (defaultTicks.length > 100) break; // Safety break
+        if (defaultTicks.length > 100) break; 
         defaultTicks.push(i);
       }
       return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
     }
     
-    // Determine the minimum value for the domain.
     let minDomain: number;
     if (minDomainValue !== null) {
       minDomain = minDomainValue;
     } else {
       const minVal = Math.min(...allHandicaps);
-      // Round min DOWN to the nearest 0.25.
       minDomain = Math.floor(minVal / 0.25) * 0.25;
     }
     
-    // Determine the maximum value for the domain.
     const maxVal = Math.max(...allHandicaps);
-    // Round max UP to the nearest 0.25.
     const maxDomain = Math.ceil(maxVal / 0.25) * 0.25;
     
-    // Generate ticks based on the calculated domain.
     const ticks = [];
     for (let i = minDomain; i <= maxDomain; i = parseFloat((i + 0.25).toFixed(2))) {
-        if (ticks.length > 100) break; // Safety break
+        if (ticks.length > 100) break; 
         ticks.push(i);
     }
     
-    // Fallback if ticks are not generated properly.
     if (ticks.length <= 1) {
         const defaultMin = minDomainValue ?? 0;
         const defaultTicks = [];
@@ -536,7 +547,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         };
         const getBubbleIntensity = (chartData: any[], minute: number, range: number) => {
             const minT = Math.max(0, minute - range);
-            // Count RED bubbles (odds drops) as pressure/intensity
             return chartData.filter(b => b.minute >= minT && b.minute <= minute && (b.colorName==='red' || b.highlight))
                             .reduce((acc, b) => acc + (b.highlight ? 1.6 : 1.0), 0);
         };
@@ -585,9 +595,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                 const currentParsedStats = parseStats(updatedDetails.stats);
                 setStatsHistory(prev => ({ ...prev, [currentTime]: currentParsedStats }));
             }
-            
-            // Automatic AI prediction logic removed as per user request to switch to manual mode.
-            // Analysis is now triggered only by clicking the "TrendingUp" icon.
         }
         
         const updatedOdds = await getMatchOdds(token, liveMatch.id);
@@ -681,7 +688,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
         const newEvents: GameEvent[] = [];
 
-        // Goal detection
         const prevTotalScore = (prevMatchState.current.ss || '0-0').split('-').map(Number).reduce((a, b) => a + b, 0);
         const currentTotalScore = (liveMatch.ss || '0-0').split('-').map(Number).reduce((a, b) => a + b, 0);
 
@@ -691,7 +697,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             }
         }
 
-        // Corner detection
         const prevStats = parseStats(prevMatchState.current.stats);
         const currentStats = parseStats(liveMatch.stats);
         const prevTotalCorners = prevStats.corners[0] + prevStats.corners[1];
@@ -817,7 +822,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             )}
         </div>
 
-        {/* Traditional Factors Section */}
         {latestAnalysis && (
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
                 <h3 className="text-sm font-bold text-gray-700 mb-3">Các yếu tố truyền thống (Phút {latestAnalysis.minute}')</h3>
@@ -829,7 +833,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             </div>
         )}
 
-        {/* New Live Stats Table */}
         <LiveStatsTable
           liveMatch={liveMatch}
           oddsHistory={oddsHistory}
@@ -845,7 +848,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
               <div className="relative h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
-                          <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
+                          <defs>
+                              <filter id="glowHome" x="-20%" y="-20%" width="140%" height="140%">
+                                  <feGaussianBlur stdDeviation="3.5" result="blur" />
+                                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                              </filter>
+                              <filter id="glowAway" x="-20%" y="-20%" width="140%" height="140%">
+                                  <feGaussianBlur stdDeviation="3.5" result="blur" />
+                                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                              </filter>
+                          </defs>
+                          <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
                           <XAxis type="number" dataKey="minute" name="Phút" unit="'" domain={[0, 90]} ticks={[0, 15, 30, 45, 60, 75, 90]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
                           <YAxis
                             yAxisId="left"
@@ -864,8 +877,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                           <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">{marketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
-                          <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="homeApi" name="API Đội nhà" stroke="#2563eb" strokeWidth={2} dot={false} />
-                          <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="awayApi" name="API Đội khách" stroke="#ea580c" strokeWidth={2} dot={false} />
+                          <Line 
+                            yAxisId="right" 
+                            type="monotone" 
+                            data={apiChartData} 
+                            dataKey="homeApi" 
+                            name="API Đội nhà" 
+                            stroke="#2dd4bf" 
+                            strokeWidth={4} 
+                            dot={<CustomApiDot data={apiChartData} />} 
+                            style={{ filter: 'url(#glowHome)' }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                          />
+                          <Line 
+                            yAxisId="right" 
+                            type="monotone" 
+                            data={apiChartData} 
+                            dataKey="awayApi" 
+                            name="API Đội khách" 
+                            stroke="#8b5cf6" 
+                            strokeWidth={4} 
+                            dot={<CustomApiDot data={apiChartData} />} 
+                            style={{ filter: 'url(#glowAway)' }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                          />
                       </ComposedChart>
                   </ResponsiveContainer>
                   <OverlayContainer>
@@ -884,7 +919,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
               <div className="relative h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                       <ComposedChart margin={{ top: 10, right: 10, bottom: 0, left: -15 }}>
-                          <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
+                          <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
                           <XAxis type="number" dataKey="minute" name="Phút" unit="'" domain={[0, 90]} ticks={[0, 15, 30, 45, 60, 75, 90]} tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} />
                           <YAxis
                             yAxisId="left"
@@ -903,8 +938,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                           <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">{homeMarketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
-                          <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="homeApi" name="API Đội nhà" stroke="#2563eb" strokeWidth={2} dot={false} />
-                          <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="awayApi" name="API Đội khách" stroke="#ea580c" strokeWidth={2} dot={false} />
+                          <Line 
+                            yAxisId="right" 
+                            type="monotone" 
+                            data={apiChartData} 
+                            dataKey="homeApi" 
+                            name="API Đội nhà" 
+                            stroke="#2dd4bf" 
+                            strokeWidth={4} 
+                            dot={<CustomApiDot data={apiChartData} />} 
+                            style={{ filter: 'url(#glowHome)' }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                          />
+                          <Line 
+                            yAxisId="right" 
+                            type="monotone" 
+                            data={apiChartData} 
+                            dataKey="awayApi" 
+                            name="API Đội khách" 
+                            stroke="#8b5cf6" 
+                            strokeWidth={4} 
+                            dot={<CustomApiDot data={apiChartData} />} 
+                            style={{ filter: 'url(#glowAway)' }}
+                            activeDot={{ r: 6, strokeWidth: 0 }}
+                          />
                       </ComposedChart>
                   </ResponsiveContainer>
                    <OverlayContainer>
@@ -924,7 +981,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             <StatBox label="Phạt góc" home={stats.corners[0]} away={stats.corners[1]} />
         </div>
 
-        {/* Ticket Manager Component */}
         <TicketManager 
             match={liveMatch} 
             latestOverOdds={oddsHistory[oddsHistory.length - 1]}
