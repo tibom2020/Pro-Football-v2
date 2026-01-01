@@ -9,9 +9,6 @@
         transform: translateX(-50%);
         z-index: 5;
     }
-    .highlight-weak { @apply bg-yellow-400; }
-    .highlight-medium { @apply bg-orange-500; }
-    .highlight-strong { @apply bg-red-600; }
     
     .highlight-label {
         @apply absolute rounded-md text-xs font-bold px-2 py-1 whitespace-nowrap;
@@ -33,12 +30,9 @@
     .ball-on { @apply bg-blue-50 text-blue-700 border-2 border-blue-500; }
     .ball-off { @apply bg-gray-50 text-gray-500 border-2 border-gray-300; }
 
-    /* Custom Animations for AI Radar */
     @keyframes radar-pulse {
         0% { transform: scale(1); opacity: 0.8; }
         100% { transform: scale(1.5); opacity: 0; }
     }
-    .animate-radar {
-        animation: radar-pulse 2s infinite ease-out;
-    }
+    .animate-radar { animation: radar-pulse 2s infinite ease-out; }
 }

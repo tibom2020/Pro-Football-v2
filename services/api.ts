@@ -43,7 +43,20 @@ const safeFetch = async (url: string, retries = 0): Promise<any> => {
 };
 
 export const getInPlayEvents = async (token: string): Promise<MatchInfo[]> => {
-  if (token === 'DEMO_MODE') return [];
+  if (token === 'DEMO_MODE') {
+    return [
+      {
+        id: "1",
+        league: { name: "Premier League - Demo" },
+        home: { name: "Manchester United" },
+        away: { name: "Liverpool" },
+        ss: "1-1",
+        time: "65",
+        timer: { tm: 65, ts: 0, tt: "1", ta: 0, md: 0 },
+        stats: { attacks: ["60", "75"], dangerous_attacks: ["35", "50"], on_target: ["5", "8"], off_target: ["4", "6"], corners: ["3", "5"], yellowcards: ["1", "2"], redcards: ["0", "0"] },
+      }
+    ];
+  }
   if (!token) return [];
   try {
     const targetUrl = `${B365_API_INPLAY}?sport_id=1&token=${token}`;
@@ -115,12 +128,12 @@ export async function getGeminiGoalPrediction(
 
   const promptContent = `
     Phân tích trận đấu bóng đá: ${homeTeamName} vs ${awayTeamName} (${homeScore}-${awayScore}) phút ${currentMinute}.
-    Thống kê: ${statsText}. API Scores: Home ${homeApi.toFixed(1)} - Away ${awayApi.toFixed(1)}.
+    API Scores: Home ${homeApi.toFixed(1)} - Away ${awayApi.toFixed(1)}. Stats: ${statsText}.
     Yêu cầu dự đoán sâu:
-    1. Xác suất bàn thắng (%) trong 10-15 phút tới.
-    2. Nhận định chiến thuật (tactical_insight): Nếu trận đấu tẻ nhạt, hãy chỉ ra tại sao (ví dụ: bế tắc trung lộ, đá an toàn) và dự đoán kịch bản thay đổi.
-    3. Đối soát lịch sử (ghost_pattern): So sánh với các trận đấu tương tự (ví dụ: "80% trận có chỉ số này nổ Tài cuối trận").
-    Trả về JSON. Ngôn ngữ: Tiếng Việt.
+    1. Xác suất nổ bàn (%) trong 10-15p tới.
+    2. Nhận định chiến thuật (tactical_insight): Nếu trận tẻ nhạt, giải thích lý do (bế tắc trung lộ, đá an toàn...) và dự đoán khi nào nhịp độ sẽ tăng.
+    3. Đối soát kịch bản lịch sử (ghost_pattern): So sánh với dữ liệu các trận tương tự (VD: "80% các trận có chỉ số này nổ Tài hiệp 1").
+    Trả về JSON. Tiếng Việt.
   `;
 
   try {
