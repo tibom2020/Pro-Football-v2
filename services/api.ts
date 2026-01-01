@@ -2,13 +2,7 @@
 import { MatchInfo, OddsData, ProcessedStats, AIPredictionResponse } from '../types';
 import { GoogleGenAI, Type } from "@google/genai";
 
-/**
- * PROXY STRATEGY:
- * B365 API often blocks common public proxies like allorigins or corsproxy.io.
- * For personal projects, a private proxy like a Cloudflare Worker is recommended.
- */
 const PROXY_URL = "https://muddy-wave-d0bc.phanvietlinh-0b1.workers.dev/"; 
-
 const B365_API_INPLAY = "https://api.b365api.com/v3/events/inplay";
 const B365_API_ODDS = "https://api.b365api.com/v2/event/odds";
 
@@ -18,7 +12,6 @@ let lastApiCallTime = 0;
 const enforceRateLimit = async () => {
     const now = Date.now();
     const timeSinceLastCall = now - lastApiCallTime;
-
     if (timeSinceLastCall < MIN_API_CALL_INTERVAL) {
         const waitTime = MIN_API_CALL_INTERVAL - timeSinceLastCall;
         await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -46,9 +39,7 @@ const safeFetch = async (url: string, retries = 0): Promise<any> => {
         const text = await response.text();
         if (!text || text.trim().length === 0) return null;
         return JSON.parse(text);
-    } catch (error) {
-        throw error;
-    }
+    } catch (error) { throw error; }
 };
 
 export const getInPlayEvents = async (token: string): Promise<MatchInfo[]> => {
@@ -124,11 +115,12 @@ export async function getGeminiGoalPrediction(
 
   const promptContent = `
     Phân tích trận đấu bóng đá: ${homeTeamName} vs ${awayTeamName} (${homeScore}-${awayScore}) phút ${currentMinute}.
-    Thống kê: ${statsText}. API: ${homeApi.toFixed(1)} vs ${awayApi.toFixed(1)}.
-    Yêu cầu:
-    1. Dự đoán xác suất nổ bàn thắng (0-100%).
-    2. Nhận định chiến thuật (tactical_insight): Nếu trận đấu đang tẻ nhạt, hãy giải thích lý do (bế tắc, đá thủ, v.v.) và dự đoán khi nào nhịp độ sẽ tăng.
-    Trả về JSON. Tiếng Việt.
+    Thống kê: ${statsText}. API Scores: Home ${homeApi.toFixed(1)} - Away ${awayApi.toFixed(1)}.
+    Yêu cầu dự đoán sâu:
+    1. Xác suất bàn thắng (%) trong 10-15 phút tới.
+    2. Nhận định chiến thuật (tactical_insight): Nếu trận đấu tẻ nhạt, hãy chỉ ra tại sao (ví dụ: bế tắc trung lộ, đá an toàn) và dự đoán kịch bản thay đổi.
+    3. Đối soát lịch sử (ghost_pattern): So sánh với các trận đấu tương tự (ví dụ: "80% trận có chỉ số này nổ Tài cuối trận").
+    Trả về JSON. Ngôn ngữ: Tiếng Việt.
   `;
 
   try {
@@ -143,9 +135,10 @@ export async function getGeminiGoalPrediction(
             goal_probability: { type: Type.INTEGER },
             confidence_level: { type: Type.STRING, enum: ['thấp', 'trung bình', 'cao', 'rất cao'] },
             reasoning: { type: Type.STRING },
-            tactical_insight: { type: Type.STRING, description: 'Phân tích chiều sâu chiến thuật cho người dùng.' }
+            tactical_insight: { type: Type.STRING },
+            ghost_pattern: { type: Type.STRING }
           },
-          required: ['goal_probability', 'confidence_level', 'tactical_insight']
+          required: ['goal_probability', 'confidence_level', 'tactical_insight', 'ghost_pattern']
         }
       },
     });
