@@ -8,68 +8,12 @@ interface OddsHistoryItem {
   [key: string]: any; // Allow for other properties like over, home, etc.
 }
 
-// Helper function to find the most likely "main" market odd from a history array.
-// This heuristic is based on a "point window" (last N updates) rather than a time window.
-const getLatestMainMarketOdd = (history: OddsHistoryItem[]) => {
+// Helper function to get the chronologically latest odd.
+const getLatestOdd = (history: OddsHistoryItem[]) => {
   if (!history || history.length === 0) {
     return null;
   }
-
-  // Fallback to the last entry if history is too short for analysis.
-  if (history.length < 5) {
-      return history[history.length - 1];
-  }
-
-  // 1. Get the last N points from history. A window of 15 provides a good balance.
-  const pointWindow = 15;
-  const recentPoints = history.slice(-pointWindow);
-
-  // 2. Count frequency of handicaps in these recent points.
-  const handicapCounts = recentPoints.reduce((acc, odd) => {
-    const handicap = odd.handicap;
-    acc[handicap] = (acc[handicap] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // 3. Find the maximum frequency count.
-  let maxCount = 0;
-  for (const handicap in handicapCounts) {
-    if (handicapCounts[handicap] > maxCount) {
-      maxCount = handicapCounts[handicap];
-    }
-  }
-
-  // 4. Identify all handicaps that have the maximum frequency (potential candidates).
-  const candidates = Object.keys(handicapCounts).filter(
-    (h) => handicapCounts[h] === maxCount
-  );
-
-  let mainHandicap: string | null = null;
-
-  // 5. Determine the main handicap from the candidates.
-  if (candidates.length === 1) {
-    // If there's only one most frequent handicap, it's our main line.
-    mainHandicap = candidates[0];
-  } else if (candidates.length > 1) {
-    // If there's a tie in frequency, the one that appeared most recently in the window wins.
-    for (let i = recentPoints.length - 1; i >= 0; i--) {
-      if (candidates.includes(recentPoints[i].handicap)) {
-        mainHandicap = recentPoints[i].handicap;
-        break; // Found the most recent among the tied candidates
-      }
-    }
-  }
-
-  // 6. Find the absolute latest entry for the determined main handicap from the full history.
-  if (mainHandicap) {
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].handicap === mainHandicap) {
-        return history[i];
-      }
-    }
-  }
-
-  // Fallback to the absolute latest entry if the heuristic somehow fails to determine a main line.
+  // The history array is pre-sorted chronologically, so the last item is the latest update.
   return history[history.length - 1];
 };
 
@@ -91,18 +35,16 @@ export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
   h1HomeOddsHistory,
   h1OverUnderOddsHistory,
 }) => {
-  const latestOdds = useMemo(() => getLatestMainMarketOdd(oddsHistory), [oddsHistory]);
-
-  const latestHomeOdds = useMemo(() => getLatestMainMarketOdd(homeOddsHistory), [homeOddsHistory]);
+  // Use the simplified logic to get the latest odds update.
+  const latestOdds = useMemo(() => getLatestOdd(oddsHistory), [oddsHistory]);
+  const latestHomeOdds = useMemo(() => getLatestOdd(homeOddsHistory), [homeOddsHistory]);
+  const latestH1HomeOdds = useMemo(() => getLatestOdd(h1HomeOddsHistory), [h1HomeOddsHistory]);
+  const latestH1OverUnderOdds = useMemo(() => getLatestOdd(h1OverUnderOddsHistory), [h1OverUnderOddsHistory]);
 
   const latestApiScores = useMemo(() => {
     if (apiChartData.length === 0) return null;
     return apiChartData[apiChartData.length - 1]; // Get the last (latest) entry
   }, [apiChartData]);
-
-  const latestH1HomeOdds = useMemo(() => getLatestMainMarketOdd(h1HomeOddsHistory), [h1HomeOddsHistory]);
-
-  const latestH1OverUnderOdds = useMemo(() => getLatestMainMarketOdd(h1OverUnderOddsHistory), [h1OverUnderOddsHistory]);
 
 
   return (
