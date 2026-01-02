@@ -390,7 +390,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
     const minuteAverages = Object.entries(oddsByMinute).map(([minute, overs]) => ({
         minute: parseInt(minute),
-        avgOver: overs.reduce((sum, val) => sum + val, 0) / overs.length
+// FIX: Cast `overs` to `number[]` to resolve TypeScript's `unknown` type inference for values from `Object.entries` on a record type.
+        avgOver: (overs as number[]).reduce((sum, val) => sum + val, 0) / (overs as number[]).length
     })).sort((a, b) => a.minute - b.minute);
 
     // Step 2: Determine color for each minute based on change from previous minute's average
@@ -457,7 +458,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
     const minuteAverages = Object.entries(oddsByMinute).map(([minute, homes]) => ({
         minute: parseInt(minute),
-        avgHome: homes.reduce((sum, val) => sum + val, 0) / homes.length
+// FIX: Cast `homes` to `number[]` to resolve TypeScript's `unknown` type inference for values from `Object.entries` on a record type.
+        avgHome: (homes as number[]).reduce((sum, val) => sum + val, 0) / (homes as number[]).length
     })).sort((a, b) => a.minute - b.minute);
 
     // Step 2: Determine color for each minute

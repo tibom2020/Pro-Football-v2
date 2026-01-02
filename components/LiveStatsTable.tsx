@@ -1,15 +1,73 @@
 
-
 import React, { useMemo } from 'react';
-import { MatchInfo, ProcessedStats } from '../types';
+import { MatchInfo } from '../types';
+
+interface OddsHistoryItem {
+  minute: number;
+  handicap: string;
+  [key: string]: any; // Allow for other properties like over, home, etc.
+}
+
+// Helper function to find the most likely "main" market odd from a history array.
+// This heuristic assumes the main line is the one with the most price updates recently.
+const getLatestMainMarketOdd = (history: OddsHistoryItem[]) => {
+  if (!history || history.length === 0) {
+    return null;
+  }
+
+  const lastEntry = history[history.length - 1];
+  if (!lastEntry) return null;
+
+  // Define the time window for analysis (e.g., last 7 minutes of action).
+  const latestMinute = lastEntry.minute;
+  const relevantTimeThreshold = Math.max(0, latestMinute - 7);
+
+  // Filter for odds within the time window.
+  const recentOdds = history.filter(o => o.minute >= relevantTimeThreshold);
+
+  // If no odds in the recent window, fallback to the absolute latest entry.
+  if (recentOdds.length === 0) {
+    return lastEntry;
+  }
+
+  // Count the frequency of each handicap line in the recent window.
+  const handicapCounts = recentOdds.reduce((acc, odd) => {
+    const handicap = odd.handicap;
+    acc[handicap] = (acc[handicap] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Find the handicap that appeared most frequently.
+  let mainHandicap: string | null = null;
+  let maxCount = 0;
+  for (const handicap in handicapCounts) {
+    if (handicapCounts[handicap] > maxCount) {
+      maxCount = handicapCounts[handicap];
+      mainHandicap = handicap;
+    }
+  }
+
+  // If a main handicap was identified, find the absolute latest entry with that handicap from the full history.
+  if (mainHandicap) {
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].handicap === mainHandicap) {
+        return history[i];
+      }
+    }
+  }
+
+  // Fallback to the absolute latest entry if the heuristic fails.
+  return lastEntry;
+};
+
 
 interface LiveStatsTableProps {
   liveMatch: MatchInfo;
-  oddsHistory: { minute: number; over: number; under: number; handicap: string }[];
-  homeOddsHistory: { minute: number; home: number; handicap: string }[];
+  oddsHistory: OddsHistoryItem[];
+  homeOddsHistory: OddsHistoryItem[];
   apiChartData: { minute: number; homeApi: number; awayApi: number }[];
-  h1HomeOddsHistory: { minute: number; home: number; handicap: string }[];
-  h1OverUnderOddsHistory: { minute: number; over: number; handicap: string }[];
+  h1HomeOddsHistory: OddsHistoryItem[];
+  h1OverUnderOddsHistory: OddsHistoryItem[];
 }
 
 export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
@@ -20,32 +78,19 @@ export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
   h1HomeOddsHistory,
   h1OverUnderOddsHistory,
 }) => {
-  const currentMinute = useMemo(() => liveMatch.timer?.tm || liveMatch.time || '0', [liveMatch.timer, liveMatch.time]);
+  const latestOdds = useMemo(() => getLatestMainMarketOdd(oddsHistory), [oddsHistory]);
 
-  const latestOdds = useMemo(() => {
-    if (oddsHistory.length === 0) return null;
-    return oddsHistory[oddsHistory.length - 1]; // Get the last (latest) entry
-  }, [oddsHistory]);
-
-  const latestHomeOdds = useMemo(() => {
-    if (homeOddsHistory.length === 0) return null;
-    return homeOddsHistory[homeOddsHistory.length - 1]; // Get the last (latest) entry
-  }, [homeOddsHistory]);
+  const latestHomeOdds = useMemo(() => getLatestMainMarketOdd(homeOddsHistory), [homeOddsHistory]);
 
   const latestApiScores = useMemo(() => {
     if (apiChartData.length === 0) return null;
     return apiChartData[apiChartData.length - 1]; // Get the last (latest) entry
   }, [apiChartData]);
 
-  const latestH1HomeOdds = useMemo(() => {
-    if (!h1HomeOddsHistory || h1HomeOddsHistory.length === 0) return null;
-    return h1HomeOddsHistory[h1HomeOddsHistory.length - 1];
-  }, [h1HomeOddsHistory]);
+  const latestH1HomeOdds = useMemo(() => getLatestMainMarketOdd(h1HomeOddsHistory), [h1HomeOddsHistory]);
 
-  const latestH1OverUnderOdds = useMemo(() => {
-    if (!h1OverUnderOddsHistory || h1OverUnderOddsHistory.length === 0) return null;
-    return h1OverUnderOddsHistory[h1OverUnderOddsHistory.length - 1];
-  }, [h1OverUnderOddsHistory]);
+  const latestH1OverUnderOdds = useMemo(() => getLatestMainMarketOdd(h1OverUnderOddsHistory), [h1OverUnderOddsHistory]);
+
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mt-4">
