@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
-import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid, LabelList } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable';
 import { TicketManager } from './TicketManager';
 
@@ -32,87 +32,33 @@ interface DashboardProps {
   onBack: () => void;
 }
 
-// Component hiển thị giá Odds trực tiếp trên biểu đồ cho 2 điểm cuối
-const CustomLabel = (props: any) => {
-    const { x, y, value, index, data } = props;
-    if (!data || data.length === 0) return null;
-    
-    // Chỉ hiển thị cho 2 điểm cuối cùng
-    const isLastTwo = index >= data.length - 2;
-    if (!isLastTwo) return null;
-
-    const point = data[index];
-    const labelText = point.over !== undefined 
-        ? `HDP ${value} (T:${point.over})` 
-        : `HDP ${value} (C:${point.home})`;
-
-    return (
-        <g>
-            <rect 
-                x={x - 35} 
-                y={y - 25} 
-                width={70} 
-                height={16} 
-                rx={4} 
-                fill="rgba(15, 23, 42, 0.85)" 
-            />
-            <text 
-                x={x} 
-                y={y - 14} 
-                fill="#fff" 
-                textAnchor="middle" 
-                fontSize={9} 
-                fontWeight="bold"
-            >
-                {labelText}
-            </text>
-        </g>
-    );
-};
-
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const minute = label;
-    // FIX: Changed lookup from `name` to `dataKey` for reliability.
-    // The YAxis specifies `dataKey="handicap"`, which gets associated with the Scatter plot.
-    const marketPayloadItem = payload.find(p => p.dataKey === 'handicap');
-    const marketPoint = marketPayloadItem?.payload;
-
+    const marketData = payload.find(p => p.dataKey === 'handicap')?.payload;
     const homeApiData = payload.find(p => p.dataKey === 'homeApi');
     const awayApiData = payload.find(p => p.dataKey === 'awayApi');
 
     return (
-        <div className="bg-slate-900 text-white text-[10px] p-2 rounded-lg shadow-xl border border-slate-700 backdrop-blur-sm">
-            <p className="font-bold border-b border-slate-700 pb-1 mb-1 text-blue-400">Phút: {minute}'</p>
-            {marketPoint && (
-                <div className="mb-1 space-y-0.5">
-                    <p className="text-gray-300 font-bold">Kèo (HDP): <span className="text-white">{marketPoint.handicap.toFixed(2)}</span></p>
-                    {marketPoint.over !== undefined && (
-                        <>
-                            <p className="flex justify-between gap-4"><span>Giá Tài:</span> <span className="font-mono text-emerald-400">{marketPoint.over.toFixed(3)}</span></p>
-                            <p className="flex justify-between gap-4"><span>Giá Xỉu:</span> <span className="font-mono text-rose-400">{marketPoint.under.toFixed(3)}</span></p>
-                        </>
+        <div className="bg-slate-800 text-white text-xs p-2 rounded shadow-lg border border-slate-700">
+            <p className="font-bold">Phút: {minute}'</p>
+            {marketData && (
+                <>
+                    <p>HDP: {typeof marketData.handicap === 'number' ? marketData.handicap.toFixed(2) : '-'}</p>
+                    {marketData.over !== undefined && (
+                        <p className="text-gray-400">Tỷ lệ Tài: {typeof marketData.over === 'number' ? marketData.over.toFixed(3) : '-'}</p>
                     )}
-                    {marketPoint.home !== undefined && (
-                        <>
-                            <p className="flex justify-between gap-4"><span>Giá Chủ:</span> <span className="font-mono text-emerald-400">{marketPoint.home.toFixed(3)}</span></p>
-                            <p className="flex justify-between gap-4"><span>Giá Khách:</span> <span className="font-mono text-rose-400">{marketPoint.away.toFixed(3)}</span></p>
-                        </>
+                    {marketData.home !== undefined && (
+                         <p className="text-gray-400">Tỷ lệ Đội nhà: {typeof marketData.home === 'number' ? marketData.home.toFixed(3) : '-'}</p>
                     )}
-                </div>
+                </>
             )}
-            <div className="pt-1 border-t border-slate-700 mt-1">
-                {homeApiData && (
-                    <p className="flex justify-between gap-4" style={{ color: homeApiData.stroke }}>
-                        <span>API Chủ:</span> <span>{homeApiData.value.toFixed(1)}</span>
-                    </p>
-                )}
-                {awayApiData && (
-                    <p className="flex justify-between gap-4" style={{ color: awayApiData.stroke }}>
-                        <span>API Khách:</span> <span>{awayApiData.value.toFixed(1)}</span>
-                    </p>
-                )}
-            </div>
+            {homeApiData && homeApiData.value !== undefined && (
+                 <p style={{ color: homeApiData.stroke }}>API Đội nhà: {homeApiData.value.toFixed(1)}</p>
+            )}
+             {awayApiData && awayApiData.value !== undefined && (
+                 <p style={{ color: awayApiData.stroke }}>API Đội khách: {awayApiData.value.toFixed(1)}</p>
+            )}
         </div>
     );
   }
@@ -171,9 +117,7 @@ const calculateAPIScore = (stats: ProcessedStats | undefined, sideIndex: 0 | 1):
     const shots = onTarget + offTarget;
     const corners = stats.corners[sideIndex];
     const dangerous = stats.dangerous_attacks[sideIndex];
-    // FIX: Adjusted weights to better reflect match pressure.
-    // Increased dangerous attacks weight, decreased corners weight.
-    return (shots * 1.0) + (onTarget * 3.0) + (corners * 0.3) + (dangerous * 0.7);
+    return (shots * 1.0) + (onTarget * 3.0) + (corners * 0.7) + (dangerous * 0.1);
 };
 
 // --- Overlay Components ---
@@ -381,136 +325,77 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
 
   const marketChartData = useMemo(() => {
-    // Step 1: Group odds by minute and calculate average 'over' price
-    const oddsByMinute = oddsHistory.reduce((acc, point) => {
-        if (!acc[point.minute]) acc[point.minute] = [];
-        acc[point.minute].push(point.over);
-        return acc;
-    }, {} as Record<number, number[]>);
-
-    const minuteAverages = Object.entries(oddsByMinute).map(([minute, overs]) => ({
-        minute: parseInt(minute),
-// FIX: Cast `overs` to `number[]` to resolve TypeScript's `unknown` type inference for values from `Object.entries` on a record type.
-        avgOver: (overs as number[]).reduce((sum, val) => sum + val, 0) / (overs as number[]).length
-    })).sort((a, b) => a.minute - b.minute);
-
-    // Step 2: Determine color for each minute based on change from previous minute's average
-    const minuteColors: Record<number, { color: string; colorName: 'red' | 'green' | 'gray' }> = {};
-    for (let i = 0; i < minuteAverages.length; i++) {
-        const current = minuteAverages[i];
-        if (i > 0) {
-            const prev = minuteAverages[i - 1];
-            const diff = current.avgOver - prev.avgOver;
-            if (diff < -0.01) {
-                minuteColors[current.minute] = { color: '#ef4444', colorName: 'red' };
-            } else if (diff > 0.01) {
-                minuteColors[current.minute] = { color: '#10b981', colorName: 'green' };
-            } else {
-                minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
-            }
-        } else {
-            minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
-        }
-    }
-    
-    // Step 3: Apply minute-based colors to all individual odds points
-    const coloredOddsHistory = oddsHistory.map(point => {
-        const minuteColor = minuteColors[point.minute] || { color: '#94a3b8', colorName: 'gray' };
-        return {
-            ...point,
-            handicap: parseFloat(point.handicap),
-            color: minuteColor.color,
-            colorName: minuteColor.colorName,
-            highlight: false,
-        };
+    const dataByHandicap: Record<string, { minute: number; over: number; under: number; handicap: string; }[]> = {};
+    oddsHistory.forEach(p => {
+        if (!dataByHandicap[p.handicap]) dataByHandicap[p.handicap] = [];
+        dataByHandicap[p.handicap].push(p);
     });
-    
-    // Step 4: Group by handicap and apply hot-streak logic
-    const dataByHandicap: Record<string, typeof coloredOddsHistory> = {};
-    coloredOddsHistory.forEach(p => {
-        const handicapKey = p.handicap.toString();
-        if (!dataByHandicap[handicapKey]) dataByHandicap[handicapKey] = [];
-        dataByHandicap[handicapKey].push(p);
-    });
-
     const finalData: any[] = [];
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
-        // Hot streak detection remains the same, but now uses the more stable colors
-        for (let i = 0; i <= points.length - 3; i++) {
-            const [b1, b2, b3] = [points[i], points[i+1], points[i+2]];
+        const coloredPoints = points.map((point, index) => {
+            let color = '#94a3b8'; 
+            let colorName = 'gray';
+            
+            if (index > 0) {
+                const diff = point.over - points[index - 1].over;
+                if (diff < -0.01) { 
+                    color = '#ef4444'; 
+                    colorName = 'red'; 
+                }
+                else if (diff > 0.01) { 
+                    color = '#10b981'; 
+                    colorName = 'green'; 
+                }
+            }
+            return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
+        });
+        
+        for (let i = 0; i <= coloredPoints.length - 3; i++) {
+            const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
             if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
-        finalData.push(...points);
+        finalData.push(...coloredPoints);
     }
     return finalData;
   }, [oddsHistory]);
 
   const homeMarketChartData = useMemo(() => {
-    // Step 1: Group odds by minute and calculate average 'home' price
-    const oddsByMinute = homeOddsHistory.reduce((acc, point) => {
-        if (!acc[point.minute]) acc[point.minute] = [];
-        acc[point.minute].push(point.home);
-        return acc;
-    }, {} as Record<number, number[]>);
-
-    const minuteAverages = Object.entries(oddsByMinute).map(([minute, homes]) => ({
-        minute: parseInt(minute),
-// FIX: Cast `homes` to `number[]` to resolve TypeScript's `unknown` type inference for values from `Object.entries` on a record type.
-        avgHome: (homes as number[]).reduce((sum, val) => sum + val, 0) / (homes as number[]).length
-    })).sort((a, b) => a.minute - b.minute);
-
-    // Step 2: Determine color for each minute
-    const minuteColors: Record<number, { color: string; colorName: 'red' | 'green' | 'gray' }> = {};
-    for (let i = 0; i < minuteAverages.length; i++) {
-        const current = minuteAverages[i];
-        if (i > 0) {
-            const prev = minuteAverages[i - 1];
-            const diff = current.avgHome - prev.avgHome;
-            if (diff < -0.01) {
-                minuteColors[current.minute] = { color: '#ef4444', colorName: 'red' };
-            } else if (diff > 0.01) {
-                minuteColors[current.minute] = { color: '#10b981', colorName: 'green' };
-            } else {
-                minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
-            }
-        } else {
-            minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
-        }
-    }
-    
-    // Step 3: Apply colors to all individual points
-    const coloredOddsHistory = homeOddsHistory.map(point => {
-        const minuteColor = minuteColors[point.minute] || { color: '#94a3b8', colorName: 'gray' };
-        return {
-            ...point,
-            handicap: parseFloat(point.handicap),
-            color: minuteColor.color,
-            colorName: minuteColor.colorName,
-            highlight: false,
-        };
+    const dataByHandicap: Record<string, { minute: number; home: number; away: number; handicap: string; }[]> = {};
+    homeOddsHistory.forEach(p => {
+        if (!dataByHandicap[p.handicap]) dataByHandicap[p.handicap] = [];
+        dataByHandicap[p.handicap].push(p);
     });
-
-    // Step 4: Group by handicap and apply hot-streak logic
-    const dataByHandicap: Record<string, typeof coloredOddsHistory> = {};
-    coloredOddsHistory.forEach(p => {
-        const handicapKey = p.handicap.toString();
-        if (!dataByHandicap[handicapKey]) dataByHandicap[handicapKey] = [];
-        dataByHandicap[handicapKey].push(p);
-    });
-
     const finalData: any[] = [];
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
-        for (let i = 0; i <= points.length - 3; i++) {
-            const [b1, b2, b3] = [points[i], points[i+1], points[i+2]];
+        const coloredPoints = points.map((point, index) => {
+            let color = '#94a3b8'; 
+            let colorName = 'gray';
+            const handicapValue = parseFloat(point.handicap);
+            
+            if (index > 0) {
+                const diff = point.home - points[index - 1].home;
+                if (diff < -0.01) {
+                    color = '#ef4444'; 
+                    colorName = 'red';
+                } else if (diff > 0.01) {
+                    color = '#10b981'; 
+                    colorName = 'green';
+                }
+            }
+            return { ...point, handicap: handicapValue, color, colorName, highlight: false };
+        });
+        
+        for (let i = 0; i <= coloredPoints.length - 3; i++) {
+            const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
             if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
-        finalData.push(...points);
+        finalData.push(...coloredPoints);
     }
     return finalData;
   }, [homeOddsHistory]);
@@ -521,39 +406,43 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       .filter((h): h is number => typeof h === 'number' && isFinite(h));
 
     if (allHandicaps.length === 0) {
-      const start = minDomainValue ?? -1;
-      const end = start + 2;
+      const defaultMin = minDomainValue ?? 0; 
       const defaultTicks = [];
-      for (let i = start; i <= end; i = parseFloat((i + 0.25).toFixed(2))) {
+      for (let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
+        if (defaultTicks.length > 100) break; 
         defaultTicks.push(i);
       }
-      return { domain: [start, end], ticks: defaultTicks };
+      return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
     }
     
-    const minVal = Math.min(...allHandicaps);
-    const maxVal = Math.max(...allHandicaps);
-
-    // Thêm khoảng đệm 0.25 vào hai đầu để các điểm không bị dính sát mép biểu đồ
-    let calculatedMin = Math.floor((minVal - 0.1) / 0.25) * 0.25;
-    let calculatedMax = Math.ceil((maxVal + 0.1) / 0.25) * 0.25;
-
-    // Áp dụng giới hạn tối thiểu nếu có (ví dụ Tài/Xỉu không thể âm, tối thiểu 0.5)
+    let minDomain: number;
     if (minDomainValue !== null) {
-      calculatedMin = Math.max(calculatedMin, minDomainValue);
+      minDomain = minDomainValue;
+    } else {
+      const minVal = Math.min(...allHandicaps);
+      minDomain = Math.floor(minVal / 0.25) * 0.25;
     }
     
-    // Đảm bảo dải hiển thị luôn có độ rộng tối thiểu để dễ nhìn
-    if (calculatedMax - calculatedMin < 0.75) {
-      calculatedMax = calculatedMin + 0.75;
-    }
-
+    const maxVal = Math.max(...allHandicaps);
+    const maxDomain = Math.ceil(maxVal / 0.25) * 0.25;
+    
     const ticks = [];
-    for (let i = calculatedMin; i <= calculatedMax; i = parseFloat((i + 0.25).toFixed(2))) {
+    for (let i = minDomain; i <= maxDomain; i = parseFloat((i + 0.25).toFixed(2))) {
         if (ticks.length > 100) break; 
         ticks.push(i);
     }
     
-    return { domain: [calculatedMin, calculatedMax], ticks };
+    if (ticks.length <= 1) {
+        const defaultMin = minDomainValue ?? 0;
+        const defaultTicks = [];
+        for(let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
+            if (defaultTicks.length > 100) break;
+            defaultTicks.push(i);
+        }
+        return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
+    }
+
+    return { domain: [minDomain, maxDomain], ticks };
   }, []);
 
   const overUnderYAxisConfig = useMemo(() => calculateYAxisConfig(marketChartData, 0.5), [marketChartData, calculateYAxisConfig]);
@@ -601,57 +490,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         }
 
         const latestOddsData = await getMatchOdds(token, liveMatch.id); 
+        const tempOddsHistory = latestOddsData?.results?.odds?.['1_3']
+            ?.filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
+            .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+            .sort((a, b) => a.minute - b.minute) || oddsHistory;
 
-        const odds_1_3 = latestOddsData?.results?.odds?.['1_3'];
-        const tempOddsHistory = odds_1_3 
-            ? [...odds_1_3].sort((a, b) => {
-                const minA = parseInt(a.time_str);
-                const minB = parseInt(b.time_str);
-                if (minA !== minB) return minA - minB;
-                return parseInt(a.add_time) - parseInt(b.add_time);
-              })
-              .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-              .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
-            : oddsHistory;
-
-        const odds_1_2 = latestOddsData?.results?.odds?.['1_2'];
-        const tempHomeOddsHistory = odds_1_2
-            ? [...odds_1_2].sort((a, b) => {
-                const minA = parseInt(a.time_str);
-                const minB = parseInt(b.time_str);
-                if (minA !== minB) return minA - minB;
-                return parseInt(a.add_time) - parseInt(b.add_time);
-              })
-              .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-              .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
-            : homeOddsHistory;
+        const tempHomeOddsHistory = latestOddsData?.results?.odds?.['1_2']
+            ?.filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
+            .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+            .sort((a,b) => a.minute - b.minute) || homeOddsHistory;
         
         setOddsHistory(tempOddsHistory);
         setHomeOddsHistory(tempHomeOddsHistory);
 
-        const odds_1_6 = latestOddsData?.results?.odds?.['1_6'];
-        const tempH1OverUnderHistory = odds_1_6
-            ? [...odds_1_6].sort((a, b) => {
-                const minA = parseInt(a.time_str);
-                const minB = parseInt(b.time_str);
-                if (minA !== minB) return minA - minB;
-                return parseInt(a.add_time) - parseInt(b.add_time);
-              })
-              .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-              .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
-            : h1OverUnderOddsHistory;
+        const tempH1OverUnderHistory = latestOddsData?.results?.odds?.['1_6']
+            ?.filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
+            .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+            .sort((a, b) => a.minute - b.minute) || h1OverUnderOddsHistory;
 
-        const odds_1_5 = latestOddsData?.results?.odds?.['1_5'];
-        const tempH1HomeHistory = odds_1_5
-            ? [...odds_1_5].sort((a, b) => {
-                const minA = parseInt(a.time_str);
-                const minB = parseInt(b.time_str);
-                if (minA !== minB) return minA - minB;
-                return parseInt(a.add_time) - parseInt(b.add_time);
-              })
-              .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-              .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
-            : h1HomeOddsHistory;
+        const tempH1HomeHistory = latestOddsData?.results?.odds?.['1_5']
+            ?.filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
+            .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+            .sort((a,b) => a.minute - b.minute) || h1HomeOddsHistory;
         
         setH1OverUnderOddsHistory(tempH1OverUnderHistory);
         setH1HomeOddsHistory(tempH1HomeHistory);
@@ -741,56 +601,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         if (updatedOdds) {
             const overMarkets = updatedOdds.results?.odds?.['1_3'];
             if (overMarkets) {
-                const newHistory = [...overMarkets]
-                    .sort((a, b) => {
-                        const minuteA = parseInt(a.time_str);
-                        const minuteB = parseInt(b.time_str);
-                        if (minuteA !== minuteB) return minuteA - minuteB;
-                        return parseInt(a.add_time) - parseInt(b.add_time);
-                    })
+                const newHistory = overMarkets
                     .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }));
+                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+                    .sort((a, b) => a.minute - b.minute);
                 setOddsHistory(newHistory);
             }
             const homeMarkets = updatedOdds.results?.odds?.['1_2'];
             if (homeMarkets) {
-                const newHomeHistory = [...homeMarkets]
-                    .sort((a, b) => {
-                        const minuteA = parseInt(a.time_str);
-                        const minuteB = parseInt(b.time_str);
-                        if (minuteA !== minuteB) return minuteA - minuteB;
-                        return parseInt(a.add_time) - parseInt(b.add_time);
-                    })
+                const newHomeHistory = homeMarkets
                     .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }));
+                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+                    .sort((a,b) => a.minute - b.minute);
                 setHomeOddsHistory(newHomeHistory);
             }
             
             const h1OverMarkets = updatedOdds.results?.odds?.['1_6'];
             if (h1OverMarkets) {
-                const newH1History = [...h1OverMarkets]
-                    .sort((a, b) => {
-                        const minuteA = parseInt(a.time_str);
-                        const minuteB = parseInt(b.time_str);
-                        if (minuteA !== minuteB) return minuteA - minuteB;
-                        return parseInt(a.add_time) - parseInt(b.add_time);
-                    })
+                const newH1History = h1OverMarkets
                     .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }));
+                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+                    .sort((a, b) => a.minute - b.minute);
                 setH1OverUnderOddsHistory(newH1History);
             }
 
             const h1HomeMarkets = updatedOdds.results?.odds?.['1_5'];
             if (h1HomeMarkets) {
-                const newH1HomeHistory = [...h1HomeMarkets]
-                    .sort((a, b) => {
-                        const minuteA = parseInt(a.time_str);
-                        const minuteB = parseInt(b.time_str);
-                        if (minuteA !== minuteB) return minuteA - minuteB;
-                        return parseInt(a.add_time) - parseInt(b.add_time);
-                    })
+                const newH1HomeHistory = h1HomeMarkets
                     .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }));
+                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+                    .sort((a,b) => a.minute - b.minute);
                 setH1HomeOddsHistory(newH1HomeHistory);
             }
         }
@@ -1036,10 +876,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">
-                              {marketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}
-                              <LabelList dataKey="handicap" content={<CustomLabel data={marketChartData} />} />
-                          </Scatter>
+                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">{marketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
                           <Line 
                             yAxisId="right" 
                             type="monotone" 
@@ -1100,10 +937,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">
-                              {homeMarketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}
-                              <LabelList dataKey="handicap" content={<CustomLabel data={homeMarketChartData} />} />
-                          </Scatter>
+                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">{homeMarketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
                           <Line 
                             yAxisId="right" 
                             type="monotone" 

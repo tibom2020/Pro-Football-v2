@@ -1,34 +1,15 @@
 
+
 import React, { useMemo } from 'react';
-import { MatchInfo } from '../types';
-
-interface OddsHistoryItem {
-  minute: number;
-  handicap: string;
-  [key: string]: any; // Allow for other properties like over, home, etc.
-}
-
-// Helper function to get the odd with the HIGHEST minute (latest time).
-const getLatestOdd = (history: OddsHistoryItem[]) => {
-  if (!history || history.length === 0) {
-    return null;
-  }
-  // Explicitly find the item with the highest minute value.
-  // Using reduce ensures we find the max minute regardless of array sort order.
-  // If minutes are equal, we take the later one in the array (assuming later index = later update).
-  return history.reduce((latest, current) => {
-    return current.minute >= latest.minute ? current : latest;
-  }, history[0]);
-};
-
+import { MatchInfo, ProcessedStats } from '../types';
 
 interface LiveStatsTableProps {
   liveMatch: MatchInfo;
-  oddsHistory: OddsHistoryItem[];
-  homeOddsHistory: OddsHistoryItem[];
+  oddsHistory: { minute: number; over: number; under: number; handicap: string }[];
+  homeOddsHistory: { minute: number; home: number; handicap: string }[];
   apiChartData: { minute: number; homeApi: number; awayApi: number }[];
-  h1HomeOddsHistory: OddsHistoryItem[];
-  h1OverUnderOddsHistory: OddsHistoryItem[];
+  h1HomeOddsHistory: { minute: number; home: number; handicap: string }[];
+  h1OverUnderOddsHistory: { minute: number; over: number; handicap: string }[];
 }
 
 export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
@@ -39,17 +20,32 @@ export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
   h1HomeOddsHistory,
   h1OverUnderOddsHistory,
 }) => {
-  // Use the robust logic to get the latest odds based on the maximum minute.
-  const latestOdds = useMemo(() => getLatestOdd(oddsHistory), [oddsHistory]);
-  const latestHomeOdds = useMemo(() => getLatestOdd(homeOddsHistory), [homeOddsHistory]);
-  const latestH1HomeOdds = useMemo(() => getLatestOdd(h1HomeOddsHistory), [h1HomeOddsHistory]);
-  const latestH1OverUnderOdds = useMemo(() => getLatestOdd(h1OverUnderOddsHistory), [h1OverUnderOddsHistory]);
+  const currentMinute = useMemo(() => liveMatch.timer?.tm || liveMatch.time || '0', [liveMatch.timer, liveMatch.time]);
+
+  const latestOdds = useMemo(() => {
+    if (oddsHistory.length === 0) return null;
+    return oddsHistory[oddsHistory.length - 1]; // Get the last (latest) entry
+  }, [oddsHistory]);
+
+  const latestHomeOdds = useMemo(() => {
+    if (homeOddsHistory.length === 0) return null;
+    return homeOddsHistory[homeOddsHistory.length - 1]; // Get the last (latest) entry
+  }, [homeOddsHistory]);
 
   const latestApiScores = useMemo(() => {
     if (apiChartData.length === 0) return null;
     return apiChartData[apiChartData.length - 1]; // Get the last (latest) entry
   }, [apiChartData]);
 
+  const latestH1HomeOdds = useMemo(() => {
+    if (!h1HomeOddsHistory || h1HomeOddsHistory.length === 0) return null;
+    return h1HomeOddsHistory[h1HomeOddsHistory.length - 1];
+  }, [h1HomeOddsHistory]);
+
+  const latestH1OverUnderOdds = useMemo(() => {
+    if (!h1OverUnderOddsHistory || h1OverUnderOddsHistory.length === 0) return null;
+    return h1OverUnderOddsHistory[h1OverUnderOddsHistory.length - 1];
+  }, [h1OverUnderOddsHistory]);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mt-4">
