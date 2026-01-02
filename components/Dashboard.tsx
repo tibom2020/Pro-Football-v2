@@ -73,8 +73,11 @@ const CustomLabel = (props: any) => {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const minute = label;
-    // Tìm dữ liệu thị trường (Scatter)
-    const marketPoint = payload.find(p => p.name === 'Thị trường')?.payload;
+    // FIX: Changed lookup from `name` to `dataKey` for reliability.
+    // The YAxis specifies `dataKey="handicap"`, which gets associated with the Scatter plot.
+    const marketPayloadItem = payload.find(p => p.dataKey === 'handicap');
+    const marketPoint = marketPayloadItem?.payload;
+
     const homeApiData = payload.find(p => p.dataKey === 'homeApi');
     const awayApiData = payload.find(p => p.dataKey === 'awayApi');
 
@@ -168,7 +171,9 @@ const calculateAPIScore = (stats: ProcessedStats | undefined, sideIndex: 0 | 1):
     const shots = onTarget + offTarget;
     const corners = stats.corners[sideIndex];
     const dangerous = stats.dangerous_attacks[sideIndex];
-    return (shots * 1.0) + (onTarget * 3.0) + (corners * 0.7) + (dangerous * 0.1);
+    // FIX: Adjusted weights to better reflect match pressure.
+    // Increased dangerous attacks weight, decreased corners weight.
+    return (shots * 1.0) + (onTarget * 3.0) + (corners * 0.3) + (dangerous * 0.7);
 };
 
 // --- Overlay Components ---
@@ -376,77 +381,134 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
 
   const marketChartData = useMemo(() => {
-    const dataByHandicap: Record<string, { minute: number; over: number; under: number; handicap: string; }[]> = {};
-    oddsHistory.forEach(p => {
-        if (!dataByHandicap[p.handicap]) dataByHandicap[p.handicap] = [];
-        dataByHandicap[p.handicap].push(p);
+    // Step 1: Group odds by minute and calculate average 'over' price
+    const oddsByMinute = oddsHistory.reduce((acc, point) => {
+        if (!acc[point.minute]) acc[point.minute] = [];
+        acc[point.minute].push(point.over);
+        return acc;
+    }, {} as Record<number, number[]>);
+
+    const minuteAverages = Object.entries(oddsByMinute).map(([minute, overs]) => ({
+        minute: parseInt(minute),
+        avgOver: overs.reduce((sum, val) => sum + val, 0) / overs.length
+    })).sort((a, b) => a.minute - b.minute);
+
+    // Step 2: Determine color for each minute based on change from previous minute's average
+    const minuteColors: Record<number, { color: string; colorName: 'red' | 'green' | 'gray' }> = {};
+    for (let i = 0; i < minuteAverages.length; i++) {
+        const current = minuteAverages[i];
+        if (i > 0) {
+            const prev = minuteAverages[i - 1];
+            const diff = current.avgOver - prev.avgOver;
+            if (diff < -0.01) {
+                minuteColors[current.minute] = { color: '#ef4444', colorName: 'red' };
+            } else if (diff > 0.01) {
+                minuteColors[current.minute] = { color: '#10b981', colorName: 'green' };
+            } else {
+                minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
+            }
+        } else {
+            minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
+        }
+    }
+    
+    // Step 3: Apply minute-based colors to all individual odds points
+    const coloredOddsHistory = oddsHistory.map(point => {
+        const minuteColor = minuteColors[point.minute] || { color: '#94a3b8', colorName: 'gray' };
+        return {
+            ...point,
+            handicap: parseFloat(point.handicap),
+            color: minuteColor.color,
+            colorName: minuteColor.colorName,
+            highlight: false,
+        };
     });
+    
+    // Step 4: Group by handicap and apply hot-streak logic
+    const dataByHandicap: Record<string, typeof coloredOddsHistory> = {};
+    coloredOddsHistory.forEach(p => {
+        const handicapKey = p.handicap.toString();
+        if (!dataByHandicap[handicapKey]) dataByHandicap[handicapKey] = [];
+        dataByHandicap[handicapKey].push(p);
+    });
+
     const finalData: any[] = [];
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
-        const coloredPoints = points.map((point, index) => {
-            let color = '#94a3b8'; 
-            let colorName = 'gray';
-            
-            if (index > 0) {
-                const diff = point.over - points[index - 1].over;
-                if (diff < -0.01) { 
-                    color = '#ef4444'; 
-                    colorName = 'red'; 
-                }
-                else if (diff > 0.01) { 
-                    color = '#10b981'; 
-                    colorName = 'green'; 
-                }
-            }
-            return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
-        });
-        
-        for (let i = 0; i <= coloredPoints.length - 3; i++) {
-            const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
+        // Hot streak detection remains the same, but now uses the more stable colors
+        for (let i = 0; i <= points.length - 3; i++) {
+            const [b1, b2, b3] = [points[i], points[i+1], points[i+2]];
             if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
-        finalData.push(...coloredPoints);
+        finalData.push(...points);
     }
     return finalData;
   }, [oddsHistory]);
 
   const homeMarketChartData = useMemo(() => {
-    const dataByHandicap: Record<string, { minute: number; home: number; away: number; handicap: string; }[]> = {};
-    homeOddsHistory.forEach(p => {
-        if (!dataByHandicap[p.handicap]) dataByHandicap[p.handicap] = [];
-        dataByHandicap[p.handicap].push(p);
+    // Step 1: Group odds by minute and calculate average 'home' price
+    const oddsByMinute = homeOddsHistory.reduce((acc, point) => {
+        if (!acc[point.minute]) acc[point.minute] = [];
+        acc[point.minute].push(point.home);
+        return acc;
+    }, {} as Record<number, number[]>);
+
+    const minuteAverages = Object.entries(oddsByMinute).map(([minute, homes]) => ({
+        minute: parseInt(minute),
+        avgHome: homes.reduce((sum, val) => sum + val, 0) / homes.length
+    })).sort((a, b) => a.minute - b.minute);
+
+    // Step 2: Determine color for each minute
+    const minuteColors: Record<number, { color: string; colorName: 'red' | 'green' | 'gray' }> = {};
+    for (let i = 0; i < minuteAverages.length; i++) {
+        const current = minuteAverages[i];
+        if (i > 0) {
+            const prev = minuteAverages[i - 1];
+            const diff = current.avgHome - prev.avgHome;
+            if (diff < -0.01) {
+                minuteColors[current.minute] = { color: '#ef4444', colorName: 'red' };
+            } else if (diff > 0.01) {
+                minuteColors[current.minute] = { color: '#10b981', colorName: 'green' };
+            } else {
+                minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
+            }
+        } else {
+            minuteColors[current.minute] = { color: '#94a3b8', colorName: 'gray' };
+        }
+    }
+    
+    // Step 3: Apply colors to all individual points
+    const coloredOddsHistory = homeOddsHistory.map(point => {
+        const minuteColor = minuteColors[point.minute] || { color: '#94a3b8', colorName: 'gray' };
+        return {
+            ...point,
+            handicap: parseFloat(point.handicap),
+            color: minuteColor.color,
+            colorName: minuteColor.colorName,
+            highlight: false,
+        };
     });
+
+    // Step 4: Group by handicap and apply hot-streak logic
+    const dataByHandicap: Record<string, typeof coloredOddsHistory> = {};
+    coloredOddsHistory.forEach(p => {
+        const handicapKey = p.handicap.toString();
+        if (!dataByHandicap[handicapKey]) dataByHandicap[handicapKey] = [];
+        dataByHandicap[handicapKey].push(p);
+    });
+
     const finalData: any[] = [];
     for (const handicapKey in dataByHandicap) {
         const points = dataByHandicap[handicapKey];
-        const coloredPoints = points.map((point, index) => {
-            let color = '#94a3b8'; 
-            let colorName = 'gray';
-            const handicapValue = parseFloat(point.handicap);
-            
-            if (index > 0) {
-                const diff = point.home - points[index - 1].home;
-                if (diff < -0.01) {
-                    color = '#ef4444'; 
-                    colorName = 'red';
-                } else if (diff > 0.01) {
-                    color = '#10b981'; 
-                    colorName = 'green';
-                }
-            }
-            return { ...point, handicap: handicapValue, color, colorName, highlight: false };
-        });
-        
-        for (let i = 0; i <= coloredPoints.length - 3; i++) {
-            const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
+        for (let i = 0; i <= points.length - 3; i++) {
+            const [b1, b2, b3] = [points[i], points[i+1], points[i+2]];
             if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
-        finalData.push(...coloredPoints);
+        finalData.push(...points);
     }
     return finalData;
   }, [homeOddsHistory]);
@@ -537,28 +599,57 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         }
 
         const latestOddsData = await getMatchOdds(token, liveMatch.id); 
-        const tempOddsHistory = latestOddsData?.results?.odds?.['1_3']
-            ?.filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-            .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
-            .sort((a, b) => a.minute - b.minute) || oddsHistory;
 
-        const tempHomeOddsHistory = latestOddsData?.results?.odds?.['1_2']
-            ?.filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-            .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
-            .sort((a,b) => a.minute - b.minute) || homeOddsHistory;
+        const odds_1_3 = latestOddsData?.results?.odds?.['1_3'];
+        const tempOddsHistory = odds_1_3 
+            ? [...odds_1_3].sort((a, b) => {
+                const minA = parseInt(a.time_str);
+                const minB = parseInt(b.time_str);
+                if (minA !== minB) return minA - minB;
+                return parseInt(a.add_time) - parseInt(b.add_time);
+              })
+              .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
+              .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+            : oddsHistory;
+
+        const odds_1_2 = latestOddsData?.results?.odds?.['1_2'];
+        const tempHomeOddsHistory = odds_1_2
+            ? [...odds_1_2].sort((a, b) => {
+                const minA = parseInt(a.time_str);
+                const minB = parseInt(b.time_str);
+                if (minA !== minB) return minA - minB;
+                return parseInt(a.add_time) - parseInt(b.add_time);
+              })
+              .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
+              .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+            : homeOddsHistory;
         
         setOddsHistory(tempOddsHistory);
         setHomeOddsHistory(tempHomeOddsHistory);
 
-        const tempH1OverUnderHistory = latestOddsData?.results?.odds?.['1_6']
-            ?.filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-            .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
-            .sort((a, b) => a.minute - b.minute) || h1OverUnderOddsHistory;
+        const odds_1_6 = latestOddsData?.results?.odds?.['1_6'];
+        const tempH1OverUnderHistory = odds_1_6
+            ? [...odds_1_6].sort((a, b) => {
+                const minA = parseInt(a.time_str);
+                const minB = parseInt(b.time_str);
+                if (minA !== minB) return minA - minB;
+                return parseInt(a.add_time) - parseInt(b.add_time);
+              })
+              .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
+              .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
+            : h1OverUnderOddsHistory;
 
-        const tempH1HomeHistory = latestOddsData?.results?.odds?.['1_5']
-            ?.filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-            .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
-            .sort((a,b) => a.minute - b.minute) || h1HomeOddsHistory;
+        const odds_1_5 = latestOddsData?.results?.odds?.['1_5'];
+        const tempH1HomeHistory = odds_1_5
+            ? [...odds_1_5].sort((a, b) => {
+                const minA = parseInt(a.time_str);
+                const minB = parseInt(b.time_str);
+                if (minA !== minB) return minA - minB;
+                return parseInt(a.add_time) - parseInt(b.add_time);
+              })
+              .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
+              .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
+            : h1HomeOddsHistory;
         
         setH1OverUnderOddsHistory(tempH1OverUnderHistory);
         setH1HomeOddsHistory(tempH1HomeHistory);
@@ -648,36 +739,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         if (updatedOdds) {
             const overMarkets = updatedOdds.results?.odds?.['1_3'];
             if (overMarkets) {
-                const newHistory = overMarkets
+                const newHistory = [...overMarkets]
+                    .sort((a, b) => {
+                        const minuteA = parseInt(a.time_str);
+                        const minuteB = parseInt(b.time_str);
+                        if (minuteA !== minuteB) return minuteA - minuteB;
+                        return parseInt(a.add_time) - parseInt(b.add_time);
+                    })
                     .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
-                    .sort((a, b) => a.minute - b.minute);
+                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }));
                 setOddsHistory(newHistory);
             }
             const homeMarkets = updatedOdds.results?.odds?.['1_2'];
             if (homeMarkets) {
-                const newHomeHistory = homeMarkets
+                const newHomeHistory = [...homeMarkets]
+                    .sort((a, b) => {
+                        const minuteA = parseInt(a.time_str);
+                        const minuteB = parseInt(b.time_str);
+                        if (minuteA !== minuteB) return minuteA - minuteB;
+                        return parseInt(a.add_time) - parseInt(b.add_time);
+                    })
                     .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
-                    .sort((a,b) => a.minute - b.minute);
+                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }));
                 setHomeOddsHistory(newHomeHistory);
             }
             
             const h1OverMarkets = updatedOdds.results?.odds?.['1_6'];
             if (h1OverMarkets) {
-                const newH1History = h1OverMarkets
+                const newH1History = [...h1OverMarkets]
+                    .sort((a, b) => {
+                        const minuteA = parseInt(a.time_str);
+                        const minuteB = parseInt(b.time_str);
+                        if (minuteA !== minuteB) return minuteA - minuteB;
+                        return parseInt(a.add_time) - parseInt(b.add_time);
+                    })
                     .filter(m => m.time_str && m.over_od && m.under_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }))
-                    .sort((a, b) => a.minute - b.minute);
+                    .map(m => ({ minute: parseInt(m.time_str), over: parseFloat(m.over_od!), under: parseFloat(m.under_od!), handicap: m.handicap! }));
                 setH1OverUnderOddsHistory(newH1History);
             }
 
             const h1HomeMarkets = updatedOdds.results?.odds?.['1_5'];
             if (h1HomeMarkets) {
-                const newH1HomeHistory = h1HomeMarkets
+                const newH1HomeHistory = [...h1HomeMarkets]
+                    .sort((a, b) => {
+                        const minuteA = parseInt(a.time_str);
+                        const minuteB = parseInt(b.time_str);
+                        if (minuteA !== minuteB) return minuteA - minuteB;
+                        return parseInt(a.add_time) - parseInt(b.add_time);
+                    })
                     .filter(m => m.time_str && m.home_od && m.away_od && m.handicap)
-                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }))
-                    .sort((a,b) => a.minute - b.minute);
+                    .map(m => ({ minute: parseInt(m.time_str), home: parseFloat(m.home_od!), away: parseFloat(m.away_od!), handicap: m.handicap! }));
                 setH1HomeOddsHistory(newH1HomeHistory);
             }
         }
