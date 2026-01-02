@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
 import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
-import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid, LabelList } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable';
 import { TicketManager } from './TicketManager';
 
@@ -32,33 +32,84 @@ interface DashboardProps {
   onBack: () => void;
 }
 
+// Component hiển thị giá Odds trực tiếp trên biểu đồ cho 2 điểm cuối
+const CustomLabel = (props: any) => {
+    const { x, y, value, index, data } = props;
+    if (!data || data.length === 0) return null;
+    
+    // Chỉ hiển thị cho 2 điểm cuối cùng
+    const isLastTwo = index >= data.length - 2;
+    if (!isLastTwo) return null;
+
+    const point = data[index];
+    const labelText = point.over !== undefined 
+        ? `HDP ${value} (T:${point.over})` 
+        : `HDP ${value} (C:${point.home})`;
+
+    return (
+        <g>
+            <rect 
+                x={x - 35} 
+                y={y - 25} 
+                width={70} 
+                height={16} 
+                rx={4} 
+                fill="rgba(15, 23, 42, 0.85)" 
+            />
+            <text 
+                x={x} 
+                y={y - 14} 
+                fill="#fff" 
+                textAnchor="middle" 
+                fontSize={9} 
+                fontWeight="bold"
+            >
+                {labelText}
+            </text>
+        </g>
+    );
+};
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const minute = label;
-    const marketData = payload.find(p => p.dataKey === 'handicap')?.payload;
+    // Tìm dữ liệu thị trường (Scatter)
+    const marketPoint = payload.find(p => p.name === 'Thị trường')?.payload;
     const homeApiData = payload.find(p => p.dataKey === 'homeApi');
     const awayApiData = payload.find(p => p.dataKey === 'awayApi');
 
     return (
-        <div className="bg-slate-800 text-white text-xs p-2 rounded shadow-lg border border-slate-700">
-            <p className="font-bold">Phút: {minute}'</p>
-            {marketData && (
-                <>
-                    <p>HDP: {typeof marketData.handicap === 'number' ? marketData.handicap.toFixed(2) : '-'}</p>
-                    {marketData.over !== undefined && (
-                        <p className="text-gray-400">Tỷ lệ Tài: {typeof marketData.over === 'number' ? marketData.over.toFixed(3) : '-'}</p>
+        <div className="bg-slate-900 text-white text-[10px] p-2 rounded-lg shadow-xl border border-slate-700 backdrop-blur-sm">
+            <p className="font-bold border-b border-slate-700 pb-1 mb-1 text-blue-400">Phút: {minute}'</p>
+            {marketPoint && (
+                <div className="mb-1 space-y-0.5">
+                    <p className="text-gray-300 font-bold">Kèo (HDP): <span className="text-white">{marketPoint.handicap.toFixed(2)}</span></p>
+                    {marketPoint.over !== undefined && (
+                        <>
+                            <p className="flex justify-between gap-4"><span>Giá Tài:</span> <span className="font-mono text-emerald-400">{marketPoint.over.toFixed(3)}</span></p>
+                            <p className="flex justify-between gap-4"><span>Giá Xỉu:</span> <span className="font-mono text-rose-400">{marketPoint.under.toFixed(3)}</span></p>
+                        </>
                     )}
-                    {marketData.home !== undefined && (
-                         <p className="text-gray-400">Tỷ lệ Đội nhà: {typeof marketData.home === 'number' ? marketData.home.toFixed(3) : '-'}</p>
+                    {marketPoint.home !== undefined && (
+                        <>
+                            <p className="flex justify-between gap-4"><span>Giá Chủ:</span> <span className="font-mono text-emerald-400">{marketPoint.home.toFixed(3)}</span></p>
+                            <p className="flex justify-between gap-4"><span>Giá Khách:</span> <span className="font-mono text-rose-400">{marketPoint.away.toFixed(3)}</span></p>
+                        </>
                     )}
-                </>
+                </div>
             )}
-            {homeApiData && homeApiData.value !== undefined && (
-                 <p style={{ color: homeApiData.stroke }}>API Đội nhà: {homeApiData.value.toFixed(1)}</p>
-            )}
-             {awayApiData && awayApiData.value !== undefined && (
-                 <p style={{ color: awayApiData.stroke }}>API Đội khách: {awayApiData.value.toFixed(1)}</p>
-            )}
+            <div className="pt-1 border-t border-slate-700 mt-1">
+                {homeApiData && (
+                    <p className="flex justify-between gap-4" style={{ color: homeApiData.stroke }}>
+                        <span>API Chủ:</span> <span>{homeApiData.value.toFixed(1)}</span>
+                    </p>
+                )}
+                {awayApiData && (
+                    <p className="flex justify-between gap-4" style={{ color: awayApiData.stroke }}>
+                        <span>API Khách:</span> <span>{awayApiData.value.toFixed(1)}</span>
+                    </p>
+                )}
+            </div>
         </div>
     );
   }
@@ -406,43 +457,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       .filter((h): h is number => typeof h === 'number' && isFinite(h));
 
     if (allHandicaps.length === 0) {
-      const defaultMin = minDomainValue ?? 0; 
+      const start = minDomainValue ?? -1;
+      const end = start + 2;
       const defaultTicks = [];
-      for (let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
-        if (defaultTicks.length > 100) break; 
+      for (let i = start; i <= end; i = parseFloat((i + 0.25).toFixed(2))) {
         defaultTicks.push(i);
       }
-      return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
+      return { domain: [start, end], ticks: defaultTicks };
     }
     
-    let minDomain: number;
-    if (minDomainValue !== null) {
-      minDomain = minDomainValue;
-    } else {
-      const minVal = Math.min(...allHandicaps);
-      minDomain = Math.floor(minVal / 0.25) * 0.25;
-    }
-    
+    const minVal = Math.min(...allHandicaps);
     const maxVal = Math.max(...allHandicaps);
-    const maxDomain = Math.ceil(maxVal / 0.25) * 0.25;
+
+    // Thêm khoảng đệm 0.25 vào hai đầu để các điểm không bị dính sát mép biểu đồ
+    let calculatedMin = Math.floor((minVal - 0.1) / 0.25) * 0.25;
+    let calculatedMax = Math.ceil((maxVal + 0.1) / 0.25) * 0.25;
+
+    // Áp dụng giới hạn tối thiểu nếu có (ví dụ Tài/Xỉu không thể âm, tối thiểu 0.5)
+    if (minDomainValue !== null) {
+      calculatedMin = Math.max(calculatedMin, minDomainValue);
+    }
     
+    // Đảm bảo dải hiển thị luôn có độ rộng tối thiểu để dễ nhìn
+    if (calculatedMax - calculatedMin < 0.75) {
+      calculatedMax = calculatedMin + 0.75;
+    }
+
     const ticks = [];
-    for (let i = minDomain; i <= maxDomain; i = parseFloat((i + 0.25).toFixed(2))) {
+    for (let i = calculatedMin; i <= calculatedMax; i = parseFloat((i + 0.25).toFixed(2))) {
         if (ticks.length > 100) break; 
         ticks.push(i);
     }
     
-    if (ticks.length <= 1) {
-        const defaultMin = minDomainValue ?? 0;
-        const defaultTicks = [];
-        for(let i = defaultMin; i <= defaultMin + 2; i = parseFloat((i + 0.25).toFixed(2))) {
-            if (defaultTicks.length > 100) break;
-            defaultTicks.push(i);
-        }
-        return { domain: [defaultMin, defaultMin + 2], ticks: defaultTicks };
-    }
-
-    return { domain: [minDomain, maxDomain], ticks };
+    return { domain: [calculatedMin, calculatedMax], ticks };
   }, []);
 
   const overUnderYAxisConfig = useMemo(() => calculateYAxisConfig(marketChartData, 0.5), [marketChartData, calculateYAxisConfig]);
@@ -876,7 +923,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">{marketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
+                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">
+                              {marketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}
+                              <LabelList dataKey="handicap" content={<CustomLabel data={marketChartData} />} />
+                          </Scatter>
                           <Line 
                             yAxisId="right" 
                             type="monotone" 
@@ -937,7 +987,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">{homeMarketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
+                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">
+                              {homeMarketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}
+                              <LabelList dataKey="handicap" content={<CustomLabel data={homeMarketChartData} />} />
+                          </Scatter>
                           <Line 
                             yAxisId="right" 
                             type="monotone" 
