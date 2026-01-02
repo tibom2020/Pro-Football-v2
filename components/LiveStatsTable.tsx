@@ -8,13 +8,17 @@ interface OddsHistoryItem {
   [key: string]: any; // Allow for other properties like over, home, etc.
 }
 
-// Helper function to get the chronologically latest odd.
+// Helper function to get the odd with the HIGHEST minute (latest time).
 const getLatestOdd = (history: OddsHistoryItem[]) => {
   if (!history || history.length === 0) {
     return null;
   }
-  // The history array is pre-sorted chronologically, so the last item is the latest update.
-  return history[history.length - 1];
+  // Explicitly find the item with the highest minute value.
+  // Using reduce ensures we find the max minute regardless of array sort order.
+  // If minutes are equal, we take the later one in the array (assuming later index = later update).
+  return history.reduce((latest, current) => {
+    return current.minute >= latest.minute ? current : latest;
+  }, history[0]);
 };
 
 
@@ -35,7 +39,7 @@ export const LiveStatsTable: React.FC<LiveStatsTableProps> = ({
   h1HomeOddsHistory,
   h1OverUnderOddsHistory,
 }) => {
-  // Use the simplified logic to get the latest odds update.
+  // Use the robust logic to get the latest odds based on the maximum minute.
   const latestOdds = useMemo(() => getLatestOdd(oddsHistory), [oddsHistory]);
   const latestHomeOdds = useMemo(() => getLatestOdd(homeOddsHistory), [homeOddsHistory]);
   const latestH1HomeOdds = useMemo(() => getLatestOdd(h1HomeOddsHistory), [h1HomeOddsHistory]);
