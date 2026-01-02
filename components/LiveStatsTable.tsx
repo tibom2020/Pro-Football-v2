@@ -9,45 +9,58 @@ interface OddsHistoryItem {
 }
 
 // Helper function to find the most likely "main" market odd from a history array.
-// This heuristic assumes the main line is the one with the most price updates recently.
+// This heuristic is based on a "point window" (last N updates) rather than a time window.
 const getLatestMainMarketOdd = (history: OddsHistoryItem[]) => {
   if (!history || history.length === 0) {
     return null;
   }
 
-  const lastEntry = history[history.length - 1];
-  if (!lastEntry) return null;
-
-  // Define the time window for analysis (e.g., last 7 minutes of action).
-  const latestMinute = lastEntry.minute;
-  const relevantTimeThreshold = Math.max(0, latestMinute - 7);
-
-  // Filter for odds within the time window.
-  const recentOdds = history.filter(o => o.minute >= relevantTimeThreshold);
-
-  // If no odds in the recent window, fallback to the absolute latest entry.
-  if (recentOdds.length === 0) {
-    return lastEntry;
+  // Fallback to the last entry if history is too short for analysis.
+  if (history.length < 5) {
+      return history[history.length - 1];
   }
 
-  // Count the frequency of each handicap line in the recent window.
-  const handicapCounts = recentOdds.reduce((acc, odd) => {
+  // 1. Get the last N points from history. A window of 15 provides a good balance.
+  const pointWindow = 15;
+  const recentPoints = history.slice(-pointWindow);
+
+  // 2. Count frequency of handicaps in these recent points.
+  const handicapCounts = recentPoints.reduce((acc, odd) => {
     const handicap = odd.handicap;
     acc[handicap] = (acc[handicap] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  // Find the handicap that appeared most frequently.
-  let mainHandicap: string | null = null;
+  // 3. Find the maximum frequency count.
   let maxCount = 0;
   for (const handicap in handicapCounts) {
     if (handicapCounts[handicap] > maxCount) {
       maxCount = handicapCounts[handicap];
-      mainHandicap = handicap;
     }
   }
 
-  // If a main handicap was identified, find the absolute latest entry with that handicap from the full history.
+  // 4. Identify all handicaps that have the maximum frequency (potential candidates).
+  const candidates = Object.keys(handicapCounts).filter(
+    (h) => handicapCounts[h] === maxCount
+  );
+
+  let mainHandicap: string | null = null;
+
+  // 5. Determine the main handicap from the candidates.
+  if (candidates.length === 1) {
+    // If there's only one most frequent handicap, it's our main line.
+    mainHandicap = candidates[0];
+  } else if (candidates.length > 1) {
+    // If there's a tie in frequency, the one that appeared most recently in the window wins.
+    for (let i = recentPoints.length - 1; i >= 0; i--) {
+      if (candidates.includes(recentPoints[i].handicap)) {
+        mainHandicap = recentPoints[i].handicap;
+        break; // Found the most recent among the tied candidates
+      }
+    }
+  }
+
+  // 6. Find the absolute latest entry for the determined main handicap from the full history.
   if (mainHandicap) {
     for (let i = history.length - 1; i >= 0; i--) {
       if (history[i].handicap === mainHandicap) {
@@ -56,8 +69,8 @@ const getLatestMainMarketOdd = (history: OddsHistoryItem[]) => {
     }
   }
 
-  // Fallback to the absolute latest entry if the heuristic fails.
-  return lastEntry;
+  // Fallback to the absolute latest entry if the heuristic somehow fails to determine a main line.
+  return history[history.length - 1];
 };
 
 
