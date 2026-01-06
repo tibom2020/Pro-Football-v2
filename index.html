@@ -3,12 +3,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
     <title>Pro Football Analytics</title>
     <style>
       body {
         background-color: #f3f4f6;
         -webkit-tap-highlight-color: transparent;
+        /* Safe area handling for iPhone X and newer */
+        padding-bottom: env(safe-area-inset-bottom);
       }
       /* Hide scrollbar for cleaner mobile UI */
       .no-scrollbar::-webkit-scrollbar {

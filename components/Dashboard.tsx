@@ -40,16 +40,16 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const awayApiData = payload.find(p => p.dataKey === 'awayApi');
 
     return (
-        <div className="bg-slate-800 text-white text-xs p-2 rounded shadow-lg border border-slate-700">
-            <p className="font-bold">Phút: {minute}'</p>
+        <div className="bg-slate-800 text-white text-xs p-2 rounded shadow-lg border border-slate-700 z-50">
+            <p className="font-bold border-b border-slate-600 mb-1 pb-1">Phút: {minute}'</p>
             {marketData && (
                 <>
-                    <p>HDP: {typeof marketData.handicap === 'number' ? marketData.handicap.toFixed(2) : '-'}</p>
+                    <p className="font-semibold text-yellow-400">HDP: {typeof marketData.handicap === 'number' ? marketData.handicap.toFixed(2) : '-'}</p>
                     {marketData.over !== undefined && (
-                        <p className="text-gray-400">Tỷ lệ Tài: {typeof marketData.over === 'number' ? marketData.over.toFixed(3) : '-'}</p>
+                        <p className="text-gray-300">Odds Tài: <span className={marketData.colorName === 'red' ? 'text-red-400' : marketData.colorName === 'green' ? 'text-green-400' : 'text-white'}>{typeof marketData.over === 'number' ? marketData.over.toFixed(3) : '-'}</span></p>
                     )}
                     {marketData.home !== undefined && (
-                         <p className="text-gray-400">Tỷ lệ Đội nhà: {typeof marketData.home === 'number' ? marketData.home.toFixed(3) : '-'}</p>
+                         <p className="text-gray-300">Odds Nhà: <span className={marketData.colorName === 'red' ? 'text-red-400' : marketData.colorName === 'green' ? 'text-green-400' : 'text-white'}>{typeof marketData.home === 'number' ? marketData.home.toFixed(3) : '-'}</span></p>
                     )}
                 </>
             )}
@@ -68,15 +68,15 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const OddsColorLegent = () => (
     <div className="flex items-center justify-center space-x-4 mt-3 text-xs text-gray-500">
         <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+            <div className="w-3 h-3 rounded-full bg-emerald-500 border border-white shadow-sm"></div>
             <span>Tăng (Money Out)</span>
         </div>
         <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-slate-400"></div>
+            <div className="w-3 h-3 rounded-full bg-slate-400 border border-white shadow-sm"></div>
             <span>Ổn định</span>
         </div>
         <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <div className="w-3 h-3 rounded-full bg-red-500 border border-white shadow-sm"></div>
             <span>Giảm (Hot/Money In)</span>
         </div>
     </div>
@@ -339,11 +339,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             
             if (index > 0) {
                 const diff = point.over - points[index - 1].over;
-                if (diff < -0.01) { 
+                // Odds Drop = Red (Money In)
+                if (diff < -0.001) { 
                     color = '#ef4444'; 
                     colorName = 'red'; 
                 }
-                else if (diff > 0.01) { 
+                // Odds Rise = Green (Money Out)
+                else if (diff > 0.001) { 
                     color = '#10b981'; 
                     colorName = 'green'; 
                 }
@@ -351,9 +353,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             return { ...point, handicap: parseFloat(point.handicap), color, colorName, highlight: false };
         });
         
+        // Highlight logic: 3 consecutive reds
         for (let i = 0; i <= coloredPoints.length - 3; i++) {
             const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
-            if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
+            // Relaxed the time constraint slightly and ensure strict color check
+            if ((b3.minute - b1.minute < 8) && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red') {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
@@ -377,11 +381,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             const handicapValue = parseFloat(point.handicap);
             
             if (index > 0) {
+                // Correct logic: Compare current home odds with previous home odds
                 const diff = point.home - points[index - 1].home;
-                if (diff < -0.01) {
+                if (diff < -0.001) {
                     color = '#ef4444'; 
                     colorName = 'red';
-                } else if (diff > 0.01) {
+                } else if (diff > 0.001) {
                     color = '#10b981'; 
                     colorName = 'green';
                 }
@@ -391,7 +396,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         
         for (let i = 0; i <= coloredPoints.length - 3; i++) {
             const [b1, b2, b3] = [coloredPoints[i], coloredPoints[i+1], coloredPoints[i+2]];
-            if (b3.minute - b1.minute < 5 && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red' && !b1.highlight) {
+            if ((b3.minute - b1.minute < 8) && b1.colorName === 'red' && b2.colorName === 'red' && b3.colorName === 'red') {
                 b1.highlight = b2.highlight = b3.highlight = true;
             }
         }
@@ -876,7 +881,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">{marketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
+                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">
+                            {marketChartData.map((e, i) => (
+                                <Cell 
+                                    key={`c-${i}`} 
+                                    fill={e.color} 
+                                    stroke="white" 
+                                    strokeWidth={2}
+                                    style={{ 
+                                        transition: 'all 0.3s ease',
+                                        r: e.highlight ? 8 : 5 // Explicitly change radius for highlighted (pressure) points
+                                    }}
+                                />
+                            ))}
+                          </Scatter>
                           <Line 
                             yAxisId="right" 
                             type="monotone" 
@@ -937,7 +955,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">{homeMarketChartData.map((e, i) => ( <Cell key={`c-${i}`} fill={e.color} /> ))}</Scatter>
+                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">
+                             {homeMarketChartData.map((e, i) => (
+                                <Cell 
+                                    key={`c-${i}`} 
+                                    fill={e.color} 
+                                    stroke="white" 
+                                    strokeWidth={2}
+                                    style={{ 
+                                        transition: 'all 0.3s ease',
+                                        r: e.highlight ? 8 : 5 
+                                    }}
+                                />
+                            ))}
+                          </Scatter>
                           <Line 
                             yAxisId="right" 
                             type="monotone" 
