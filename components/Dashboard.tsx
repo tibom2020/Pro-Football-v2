@@ -2,10 +2,11 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
-import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info, Zap, X, MessageSquare } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable';
 import { TicketManager } from './TicketManager';
+import { AlertHistoryPanel, StoredAlert } from './AlertHistoryPanel';
 
 // --- Types for Highlights and Shots ---
 interface Highlight {
@@ -24,6 +25,13 @@ interface ShotEvent {
 interface GameEvent {
   minute: number;
   type: 'goal' | 'corner';
+}
+
+interface MomentumAlertState {
+    active: boolean;
+    message: string;
+    subMessage: string;
+    type: 'pressure' | 'goal';
 }
 
 interface DashboardProps {
@@ -265,6 +273,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const [analysisHistory, setAnalysisHistory] = useState<PreGoalAnalysis[]>([]);
   const prevMatchState = useRef<MatchInfo | null>(null);
   
+  // Alert State
+  const [alertState, setAlertState] = useState<MomentumAlertState>({ active: false, message: '', subMessage: '', type: 'pressure' });
+  const lastAlertMinute = useRef<number>(0);
+
+  // Alert Chat History State
+  const [alertHistory, setAlertHistory] = useState<StoredAlert[]>([]);
+  const [showAlertPanel, setShowAlertPanel] = useState(false);
+  const [hasNewAlert, setHasNewAlert] = useState(false);
+  
   const stats = useMemo(() => parseStats(liveMatch.stats), [liveMatch.stats]);
   const latestAnalysis = useMemo(() => analysisHistory[0] || null, [analysisHistory]);
 
@@ -281,8 +298,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     const savedGameEvents = localStorage.getItem(`gameEvents_${match.id}`);
     if (savedGameEvents) setGameEvents(JSON.parse(savedGameEvents)); else setGameEvents([]);
 
+    const savedAlerts = localStorage.getItem(`alertHistory_${match.id}`);
+    if (savedAlerts) setAlertHistory(JSON.parse(savedAlerts)); else setAlertHistory([]);
+
   }, [match.id]);
   
+  // Save Alerts to local storage
+  useEffect(() => {
+    if (alertHistory.length > 0) {
+        localStorage.setItem(`alertHistory_${match.id}`, JSON.stringify(alertHistory));
+    }
+  }, [alertHistory, match.id]);
+
   useEffect(() => {
     try {
         const historyStr = localStorage.getItem('viewedMatchesHistory');
@@ -404,6 +431,84 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     }
     return finalData;
   }, [homeOddsHistory]);
+  
+  // --- Auto Alert Logic ---
+  const checkAutomaticAlerts = useCallback(() => {
+      const currentMinute = parseInt(liveMatch.timer?.tm?.toString() || liveMatch.time || "0");
+      if (currentMinute <= 5) return; // Skip very early game
+
+      // Prevent spamming alerts within 5 minutes
+      if (currentMinute - lastAlertMinute.current < 5) return;
+
+      const sortedMinutes = Object.keys(statsHistory).map(Number).sort((a, b) => b - a); // Descending
+      if (sortedMinutes.length < 2) return;
+
+      // 1. Check Stats Momentum (Last 3-4 mins)
+      const currentStats = statsHistory[sortedMinutes[0]];
+      // Look back ~3 minutes
+      const pastMinuteIndex = sortedMinutes.findIndex(m => m <= currentMinute - 3);
+      const pastStats = pastMinuteIndex !== -1 ? statsHistory[sortedMinutes[pastMinuteIndex]] : statsHistory[sortedMinutes[sortedMinutes.length - 1]];
+
+      if (!currentStats || !pastStats) return;
+
+      const currentTotalDA = currentStats.dangerous_attacks[0] + currentStats.dangerous_attacks[1];
+      const pastTotalDA = pastStats.dangerous_attacks[0] + pastStats.dangerous_attacks[1];
+      const deltaDA = currentTotalDA - pastTotalDA;
+
+      const currentTotalShots = (currentStats.on_target[0] + currentStats.on_target[1]) + (currentStats.off_target[0] + currentStats.off_target[1]);
+      const pastTotalShots = (pastStats.on_target[0] + pastStats.on_target[1]) + (pastStats.off_target[0] + pastStats.off_target[1]);
+      const deltaShots = currentTotalShots - pastTotalShots;
+
+      // 2. Check Odds Trend (Last few entries)
+      // Check if the last 2-3 data points in marketChartData have 'red' color (dropping odds)
+      // Filter for points in the last 5 minutes
+      const recentOdds = marketChartData.filter(p => p.minute >= currentMinute - 5);
+      // Count how many recent points are red (dropping)
+      const droppingCount = recentOdds.filter(p => p.colorName === 'red').length;
+      const isOddsDropping = droppingCount >= 2;
+
+      // 3. Combine Logic
+      // Rule: DA increases significantly OR Shots increase significantly AND Odds are dropping
+      const isHighPressure = (deltaDA >= 5 || deltaShots >= 2) && isOddsDropping;
+
+      if (isHighPressure) {
+          const alertMessage = 'CẢNH BÁO ÁP LỰC CAO!';
+          const alertSubMessage = `DA tăng ${deltaDA}, Sút tăng ${deltaShots} trong 3p + Odds Tài đang giảm!`;
+          
+          setAlertState({
+              active: true,
+              type: 'pressure',
+              message: alertMessage,
+              subMessage: alertSubMessage
+          });
+          
+          // Add to History
+          const newAlert: StoredAlert = {
+              id: Date.now().toString(),
+              minute: currentMinute,
+              type: 'pressure',
+              title: alertMessage,
+              message: alertSubMessage,
+              timestamp: Date.now()
+          };
+          
+          setAlertHistory(prev => [...prev, newAlert]);
+          if (!showAlertPanel) setHasNewAlert(true);
+          
+          lastAlertMinute.current = currentMinute;
+          
+          if (navigator.vibrate) {
+              navigator.vibrate([200, 100, 200, 100, 500]);
+          }
+
+          // Auto dismiss toast after 8 seconds
+          setTimeout(() => {
+              setAlertState(prev => ({ ...prev, active: false }));
+          }, 8000);
+      }
+
+  }, [liveMatch, statsHistory, marketChartData, showAlertPanel]);
+
 
   const calculateYAxisConfig = useCallback((chartData: { handicap?: number }[], minDomainValue: number | null) => {
     const allHandicaps = chartData
@@ -640,6 +745,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             }
         }
         
+        // Execute Automatic Alert Check
+        checkAutomaticAlerts();
+        
         if (latestAnalysis) {
             runPatternDetection(latestAnalysis.score, latestAnalysis.level); 
         }
@@ -649,7 +757,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     } finally {
         setIsRefreshing(false);
     }
-  }, [token, liveMatch.id, latestAnalysis, runPatternDetection]); 
+  }, [token, liveMatch.id, latestAnalysis, runPatternDetection, checkAutomaticAlerts]); 
   
   useEffect(() => {
     let isMounted = true;
@@ -737,6 +845,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
   return (
     <div className="pb-10">
+      {/* Alert Overlay */}
+      {alertState.active && (
+          <div className="fixed top-14 left-4 right-4 z-50 animate-in slide-in-from-top-4 duration-300">
+              <div className="bg-gradient-to-r from-red-600 to-orange-600 rounded-lg shadow-xl p-4 text-white relative border-2 border-white/20">
+                  <button 
+                      onClick={() => setAlertState(prev => ({ ...prev, active: false }))}
+                      className="absolute top-2 right-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                      <X className="w-4 h-4" />
+                  </button>
+                  <div className="flex items-start gap-3">
+                      <div className="p-2 bg-white/20 rounded-full animate-pulse">
+                          <Zap className="w-6 h-6 text-yellow-300" />
+                      </div>
+                      <div>
+                          <h3 className="font-black text-lg uppercase tracking-tight flex items-center gap-2">
+                              {alertState.message}
+                          </h3>
+                          <p className="text-sm text-red-100 font-medium leading-tight mt-1">
+                              {alertState.subMessage}
+                          </p>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Alert History Panel */}
+      <AlertHistoryPanel 
+        isOpen={showAlertPanel} 
+        onClose={() => { setShowAlertPanel(false); setHasNewAlert(false); }}
+        alerts={alertHistory}
+        onClear={() => { setAlertHistory([]); localStorage.removeItem(`alertHistory_${match.id}`); }}
+      />
+
       <div className="bg-white sticky top-0 z-10 shadow-sm border-b border-gray-200">
         <div className="px-4 py-3 flex items-center justify-between">
           <button onClick={onBack} className="p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-full">
@@ -750,10 +893,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
              </span>
           </div>
           <div className="flex items-center space-x-2">
+            <button
+                onClick={() => { setShowAlertPanel(true); setHasNewAlert(false); }}
+                className="p-2 relative text-gray-600 hover:bg-gray-100 rounded-full"
+                title="Nhật ký cảnh báo"
+            >
+                <MessageSquare className="w-5 h-5" />
+                {hasNewAlert && (
+                    <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+                )}
+            </button>
             <button 
               onClick={fetchGeminiPrediction} 
               disabled={isAIPredicting || hasRecentAnalysis} 
-              className="p-2 -mr-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Phân tích AI"
               title={hasRecentAnalysis ? `Đã có phân tích gần đây lúc ${latestAnalysis?.minute}'. Vui lòng đợi đến phút ${latestAnalysis && latestAnalysis.minute + 10}'` : 'Chạy phân tích AI'}
             >
