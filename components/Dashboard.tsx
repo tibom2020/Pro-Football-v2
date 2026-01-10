@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { MatchInfo, PreGoalAnalysis, OddsItem, ProcessedStats, AIPredictionResponse, OddsData, ViewedMatchHistory } from '../types';
 import { parseStats, getMatchDetails, getMatchOdds, getGeminiGoalPrediction } from '../services/api';
-import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info, Zap, X, MessageSquare } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Siren, TrendingUp, Info, Zap, X, MessageSquare, Activity } from 'lucide-react';
 import { ResponsiveContainer, ComposedChart, Scatter, XAxis, YAxis, Tooltip, Cell, Line, Legend, CartesianGrid } from 'recharts';
 import { LiveStatsTable } from './LiveStatsTable';
 import { TicketManager } from './TicketManager';
@@ -13,10 +13,6 @@ interface Highlight {
     minute: number;
     level: 'weak' | 'medium' | 'strong';
     label: string;
-}
-interface AllHighlights {
-    overUnder: Highlight[];
-    homeOdds: Highlight[];
 }
 interface ShotEvent {
     minute: number;
@@ -74,18 +70,40 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 const OddsColorLegent = () => (
-    <div className="flex items-center justify-center space-x-4 mt-3 text-xs text-gray-500">
-        <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-emerald-500 border border-white shadow-sm"></div>
-            <span>Tăng (Money Out)</span>
+    <div className="flex flex-col gap-2 mt-3 px-4 py-2 bg-gray-50 rounded-lg border border-gray-100">
+        <div className="flex items-center justify-between text-xs text-gray-500">
+            <span className="font-semibold text-gray-700">Thị trường:</span>
+            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                    <span>Tăng</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+                    <span>Ổn định</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                    <span>Giảm (Hot)</span>
+                </div>
+            </div>
         </div>
-        <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-slate-400 border border-white shadow-sm"></div>
-            <span>Ổn định</span>
-        </div>
-        <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-red-500 border border-white shadow-sm"></div>
-            <span>Giảm (Hot/Money In)</span>
+        <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-200 pt-2">
+            <span className="font-semibold text-gray-700">Nhịp độ (Thanh dưới):</span>
+            <div className="flex items-center gap-3">
+                 <div className="flex items-center gap-1">
+                    <div className="w-2 h-4 rounded-sm bg-yellow-400"></div>
+                    <span>Chậm</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="w-2 h-4 rounded-sm bg-orange-500"></div>
+                    <span>Tăng tốc</span>
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="w-2 h-4 rounded-sm bg-red-600"></div>
+                    <span>Dồn ép</span>
+                </div>
+            </div>
         </div>
     </div>
 );
@@ -180,7 +198,7 @@ const HighlightBands = ({ highlights, containerWidth }: { highlights: Highlight[
                     backgroundColor: getHighlightColor(h.level) 
                 }}
             >
-                <div className={`highlight-label label-color-${h.level}`}>{h.label}</div>
+                {/* Removed label to keep UI clean for pace indicators */}
             </div>
         ))}
     </>;
@@ -267,7 +285,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const [h1HomeOddsHistory, setH1HomeOddsHistory] = useState<{ minute: number; home: number; away: number; handicap: string }[]>([]);
   const [h1OverUnderOddsHistory, setH1OverUnderOddsHistory] = useState<{ minute: number; over: number; under: number; handicap: string }[]>([]);
   const [statsHistory, setStatsHistory] = useState<Record<number, ProcessedStats>>({});
-  const [highlights, setHighlights] = useState<AllHighlights>({ overUnder: [], homeOdds: [] });
   const [shotEvents, setShotEvents] = useState<ShotEvent[]>([]);
   const [gameEvents, setGameEvents] = useState<GameEvent[]>([]);
   const [analysisHistory, setAnalysisHistory] = useState<PreGoalAnalysis[]>([]);
@@ -289,8 +306,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     const savedStats = localStorage.getItem(`statsHistory_${match.id}`);
     if (savedStats) setStatsHistory(JSON.parse(savedStats)); else setStatsHistory({});
     
-    const savedHighlights = localStorage.getItem(`highlights_${match.id}`);
-    if (savedHighlights) setHighlights(JSON.parse(savedHighlights)); else setHighlights({ overUnder: [], homeOdds: [] });
+    // Removed highlight storage loading as it's now calculated on the fly
 
     const savedAnalysis = localStorage.getItem(`analysisHistory_${match.id}`);
     if (savedAnalysis) setAnalysisHistory(JSON.parse(savedAnalysis)); else setAnalysisHistory([]);
@@ -331,12 +347,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         localStorage.setItem(`statsHistory_${match.id}`, JSON.stringify(statsHistory));
      }
   }, [statsHistory, match.id]);
-
-  useEffect(() => {
-    if (highlights.overUnder.length > 0 || highlights.homeOdds.length > 0) {
-        localStorage.setItem(`highlights_${match.id}`, JSON.stringify(highlights));
-    }
-  }, [highlights, match.id]);
 
   useEffect(() => {
     if (analysisHistory.length > 0) {
@@ -431,6 +441,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     }
     return finalData;
   }, [homeOddsHistory]);
+  
+  // --- Pace Calculation (Replaces old AI highlights) ---
+  const paceHighlights = useMemo(() => {
+    const sortedMinutes = Object.keys(statsHistory).map(Number).sort((a, b) => a - b);
+    const results: Highlight[] = [];
+
+    for (let i = 1; i < sortedMinutes.length; i++) {
+        const currMin = sortedMinutes[i];
+        const prevMin = sortedMinutes[i-1];
+        const curr = statsHistory[currMin];
+        const prev = statsHistory[prevMin];
+
+        if (!curr || !prev) continue;
+
+        // Calculate Deltas
+        const currentDA = curr.dangerous_attacks[0] + curr.dangerous_attacks[1];
+        const prevDA = prev.dangerous_attacks[0] + prev.dangerous_attacks[1];
+        const daDelta = currentDA - prevDA;
+
+        const currentAttacks = curr.attacks[0] + curr.attacks[1];
+        const prevAttacks = prev.attacks[0] + prev.attacks[1];
+        const attacksDelta = currentAttacks - prevAttacks;
+
+        const currentShots = (curr.on_target[0] + curr.on_target[1] + curr.off_target[0] + curr.off_target[1]);
+        const prevShots = (prev.on_target[0] + prev.on_target[1] + prev.off_target[0] + prev.off_target[1]);
+        const shotDelta = currentShots - prevShots;
+
+        let level: 'weak' | 'medium' | 'strong' | null = null;
+        let label = '';
+
+        // Logic for Pace Colors
+        if (shotDelta > 0 || daDelta >= 2) {
+            level = 'strong'; // Red - High Intensity / Pressing
+            label = 'Dồn ép';
+        } else if (daDelta >= 1) {
+            level = 'medium'; // Orange - Accelerating
+            label = 'Tăng tốc';
+        } else if (attacksDelta >= 2) {
+             level = 'weak'; // Yellow - Slow / Buildup
+             label = 'Cầm bóng';
+        }
+
+        if (level) {
+            results.push({ minute: currMin, level, label });
+        }
+    }
+    return results;
+  }, [statsHistory]);
+
 
   const calculateYAxisConfig = useCallback((chartData: { handicap?: number }[], minDomainValue: number | null) => {
     const allHandicaps = chartData
@@ -480,32 +539,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
   const overUnderYAxisConfig = useMemo(() => calculateYAxisConfig(marketChartData, 0.5), [marketChartData, calculateYAxisConfig]);
   const homeAwayYAxisConfig = useMemo(() => calculateYAxisConfig(homeMarketChartData, null), [homeMarketChartData, calculateYAxisConfig]);
 
+  // Removed runPatternDetection logic as it was populating old highlights
 
-  const runPatternDetection = useCallback(async (aiScore: number, aiLevel: PreGoalAnalysis['level']) => {
-    const currentMinute = parseInt(liveMatch.timer?.tm?.toString() || liveMatch.time || "0");
-    if (!currentMinute || currentMinute < 10) return;
-
-    let highlightLevel: Highlight['level'] | null = null;
-    if (aiLevel === 'rất cao') highlightLevel = 'strong';
-    else if (aiLevel === 'cao') highlightLevel = 'medium';
-    else if (aiLevel === 'trung bình') highlightLevel = 'weak';
-    
-    if (highlightLevel) {
-        const newHighlight: Highlight = { minute: currentMinute, level: highlightLevel, label: `${aiScore}%` };
-        setHighlights(prev => {
-            const alreadyExists = prev.overUnder.some(h => h.minute === newHighlight.minute && h.level === newHighlight.level);
-            if (!alreadyExists) {
-                return {
-                    overUnder: [...prev.overUnder, newHighlight],
-                    homeOdds: [...prev.homeOdds, newHighlight]
-                };
-            }
-            return prev;
-        });
-    }
-  }, [liveMatch.timer, liveMatch.time]);
-
-  const fetchGeminiPrediction = useCallback(async () => {
+  const fetchGeminiPrediction = useCallback(async (isAuto: boolean = false) => {
     setIsAIPredicting(true);
     try {
         const latestDetails = await getMatchDetails(token, liveMatch.id);
@@ -604,7 +640,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                 reasoning: aiPrediction.reasoning,
             };
             setAnalysisHistory(prev => [newAnalysis, ...prev.filter(a => a.minute !== currentMinute)]);
-            runPatternDetection(aiPrediction.goal_probability, aiPrediction.confidence_level);
+            
+            // AUTO PUSH TO ALERT FEED
+            if (isAuto) {
+                 const aiAlert: StoredAlert = {
+                      id: Date.now().toString() + '_ai',
+                      minute: currentMinute,
+                      type: 'goal', 
+                      title: `AI PHÂN TÍCH: ${aiPrediction.confidence_level.toUpperCase()}`,
+                      message: `Dự báo bàn thắng: ${aiPrediction.goal_probability}%. ${aiPrediction.reasoning}`,
+                      timestamp: Date.now()
+                  };
+                  setAlertHistory(prev => [...prev, aiAlert]);
+                  if (!showAlertPanel) setHasNewAlert(true);
+            }
         } else {
             console.warn("Gemini AI prediction failed, analysis not updated.");
         }
@@ -613,7 +662,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     } finally {
         setIsAIPredicting(false);
     }
-  }, [token, liveMatch.id, oddsHistory, homeOddsHistory, h1HomeOddsHistory, h1OverUnderOddsHistory, statsHistory, marketChartData, homeMarketChartData, runPatternDetection]);
+  }, [token, liveMatch.id, oddsHistory, homeOddsHistory, h1HomeOddsHistory, h1OverUnderOddsHistory, statsHistory, marketChartData, homeMarketChartData, showAlertPanel]);
 
 
   // --- Auto Alert Logic ---
@@ -685,8 +734,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
               navigator.vibrate([200, 100, 200, 100, 500]);
           }
 
-          // Trigger AI Prediction immediately
-          fetchGeminiPrediction();
+          // Trigger AI Prediction immediately with IS_AUTO = true
+          fetchGeminiPrediction(true);
 
           // Auto dismiss toast after 8 seconds
           setTimeout(() => {
@@ -751,16 +800,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         // Execute Automatic Alert Check
         checkAutomaticAlerts();
         
-        if (latestAnalysis) {
-            runPatternDetection(latestAnalysis.score, latestAnalysis.level); 
-        }
-
     } catch (error) {
         console.error("Error during data refresh:", error);
     } finally {
         setIsRefreshing(false);
     }
-  }, [token, liveMatch.id, latestAnalysis, runPatternDetection, checkAutomaticAlerts]); 
+  }, [token, liveMatch.id, checkAutomaticAlerts]); 
   
   useEffect(() => {
     let isMounted = true;
@@ -907,7 +952,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                 )}
             </button>
             <button 
-              onClick={fetchGeminiPrediction} 
+              onClick={() => fetchGeminiPrediction(false)} 
               disabled={isAIPredicting || hasRecentAnalysis} 
               className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Phân tích AI"
@@ -1078,7 +1123,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                       </ComposedChart>
                   </ResponsiveContainer>
                   <OverlayContainer>
-                      <HighlightBands highlights={highlights.overUnder} />
+                      <HighlightBands highlights={paceHighlights} containerWidth={0} />
                       <ShotBalls shots={shotEvents} />
                       <GameEventMarkers events={gameEvents} />
                   </OverlayContainer>
@@ -1152,7 +1197,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                       </ComposedChart>
                   </ResponsiveContainer>
                    <OverlayContainer>
-                      <HighlightBands highlights={highlights.homeOdds} />
+                      <HighlightBands highlights={paceHighlights} containerWidth={0} />
                       <ShotBalls shots={shotEvents} />
                       <GameEventMarkers events={gameEvents} />
                   </OverlayContainer>
