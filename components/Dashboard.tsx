@@ -431,84 +431,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     }
     return finalData;
   }, [homeOddsHistory]);
-  
-  // --- Auto Alert Logic ---
-  const checkAutomaticAlerts = useCallback(() => {
-      const currentMinute = parseInt(liveMatch.timer?.tm?.toString() || liveMatch.time || "0");
-      if (currentMinute <= 5) return; // Skip very early game
-
-      // Prevent spamming alerts within 5 minutes
-      if (currentMinute - lastAlertMinute.current < 5) return;
-
-      const sortedMinutes = Object.keys(statsHistory).map(Number).sort((a, b) => b - a); // Descending
-      if (sortedMinutes.length < 2) return;
-
-      // 1. Check Stats Momentum (Last 3-4 mins)
-      const currentStats = statsHistory[sortedMinutes[0]];
-      // Look back ~3 minutes
-      const pastMinuteIndex = sortedMinutes.findIndex(m => m <= currentMinute - 3);
-      const pastStats = pastMinuteIndex !== -1 ? statsHistory[sortedMinutes[pastMinuteIndex]] : statsHistory[sortedMinutes[sortedMinutes.length - 1]];
-
-      if (!currentStats || !pastStats) return;
-
-      const currentTotalDA = currentStats.dangerous_attacks[0] + currentStats.dangerous_attacks[1];
-      const pastTotalDA = pastStats.dangerous_attacks[0] + pastStats.dangerous_attacks[1];
-      const deltaDA = currentTotalDA - pastTotalDA;
-
-      const currentTotalShots = (currentStats.on_target[0] + currentStats.on_target[1]) + (currentStats.off_target[0] + currentStats.off_target[1]);
-      const pastTotalShots = (pastStats.on_target[0] + pastStats.on_target[1]) + (pastStats.off_target[0] + pastStats.off_target[1]);
-      const deltaShots = currentTotalShots - pastTotalShots;
-
-      // 2. Check Odds Trend (Last few entries)
-      // Check if the last 2-3 data points in marketChartData have 'red' color (dropping odds)
-      // Filter for points in the last 5 minutes
-      const recentOdds = marketChartData.filter(p => p.minute >= currentMinute - 5);
-      // Count how many recent points are red (dropping)
-      const droppingCount = recentOdds.filter(p => p.colorName === 'red').length;
-      const isOddsDropping = droppingCount >= 2;
-
-      // 3. Combine Logic
-      // Rule: DA increases significantly OR Shots increase significantly AND Odds are dropping
-      const isHighPressure = (deltaDA >= 5 || deltaShots >= 2) && isOddsDropping;
-
-      if (isHighPressure) {
-          const alertMessage = 'CẢNH BÁO ÁP LỰC CAO!';
-          const alertSubMessage = `DA tăng ${deltaDA}, Sút tăng ${deltaShots} trong 3p + Odds Tài đang giảm!`;
-          
-          setAlertState({
-              active: true,
-              type: 'pressure',
-              message: alertMessage,
-              subMessage: alertSubMessage
-          });
-          
-          // Add to History
-          const newAlert: StoredAlert = {
-              id: Date.now().toString(),
-              minute: currentMinute,
-              type: 'pressure',
-              title: alertMessage,
-              message: alertSubMessage,
-              timestamp: Date.now()
-          };
-          
-          setAlertHistory(prev => [...prev, newAlert]);
-          if (!showAlertPanel) setHasNewAlert(true);
-          
-          lastAlertMinute.current = currentMinute;
-          
-          if (navigator.vibrate) {
-              navigator.vibrate([200, 100, 200, 100, 500]);
-          }
-
-          // Auto dismiss toast after 8 seconds
-          setTimeout(() => {
-              setAlertState(prev => ({ ...prev, active: false }));
-          }, 8000);
-      }
-
-  }, [liveMatch, statsHistory, marketChartData, showAlertPanel]);
-
 
   const calculateYAxisConfig = useCallback((chartData: { handicap?: number }[], minDomainValue: number | null) => {
     const allHandicaps = chartData
@@ -692,6 +614,87 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         setIsAIPredicting(false);
     }
   }, [token, liveMatch.id, oddsHistory, homeOddsHistory, h1HomeOddsHistory, h1OverUnderOddsHistory, statsHistory, marketChartData, homeMarketChartData, runPatternDetection]);
+
+
+  // --- Auto Alert Logic ---
+  const checkAutomaticAlerts = useCallback(() => {
+      const currentMinute = parseInt(liveMatch.timer?.tm?.toString() || liveMatch.time || "0");
+      if (currentMinute <= 5) return; // Skip very early game
+
+      // Prevent spamming alerts within 5 minutes
+      if (currentMinute - lastAlertMinute.current < 5) return;
+
+      const sortedMinutes = Object.keys(statsHistory).map(Number).sort((a, b) => b - a); // Descending
+      if (sortedMinutes.length < 2) return;
+
+      // 1. Check Stats Momentum (Last 3-4 mins)
+      const currentStats = statsHistory[sortedMinutes[0]];
+      // Look back ~3 minutes
+      const pastMinuteIndex = sortedMinutes.findIndex(m => m <= currentMinute - 3);
+      const pastStats = pastMinuteIndex !== -1 ? statsHistory[sortedMinutes[pastMinuteIndex]] : statsHistory[sortedMinutes[sortedMinutes.length - 1]];
+
+      if (!currentStats || !pastStats) return;
+
+      const currentTotalDA = currentStats.dangerous_attacks[0] + currentStats.dangerous_attacks[1];
+      const pastTotalDA = pastStats.dangerous_attacks[0] + pastStats.dangerous_attacks[1];
+      const deltaDA = currentTotalDA - pastTotalDA;
+
+      const currentTotalShots = (currentStats.on_target[0] + currentStats.on_target[1]) + (currentStats.off_target[0] + currentStats.off_target[1]);
+      const pastTotalShots = (pastStats.on_target[0] + pastStats.on_target[1]) + (pastStats.off_target[0] + pastStats.off_target[1]);
+      const deltaShots = currentTotalShots - pastTotalShots;
+
+      // 2. Check Odds Trend (Last few entries)
+      // Check if the last 2-3 data points in marketChartData have 'red' color (dropping odds)
+      // Filter for points in the last 5 minutes
+      const recentOdds = marketChartData.filter(p => p.minute >= currentMinute - 5);
+      // Count how many recent points are red (dropping)
+      const droppingCount = recentOdds.filter(p => p.colorName === 'red').length;
+      const isOddsDropping = droppingCount >= 2;
+
+      // 3. Combine Logic
+      // Rule: DA increases significantly OR Shots increase significantly AND Odds are dropping
+      const isHighPressure = (deltaDA >= 5 || deltaShots >= 2) && isOddsDropping;
+
+      if (isHighPressure) {
+          const alertMessage = 'CẢNH BÁO ÁP LỰC CAO!';
+          const alertSubMessage = `DA tăng ${deltaDA}, Sút tăng ${deltaShots} trong 3p + Odds Tài đang giảm!`;
+          
+          setAlertState({
+              active: true,
+              type: 'pressure',
+              message: alertMessage,
+              subMessage: alertSubMessage
+          });
+          
+          // Add to History
+          const newAlert: StoredAlert = {
+              id: Date.now().toString(),
+              minute: currentMinute,
+              type: 'pressure',
+              title: alertMessage,
+              message: alertSubMessage,
+              timestamp: Date.now()
+          };
+          
+          setAlertHistory(prev => [...prev, newAlert]);
+          if (!showAlertPanel) setHasNewAlert(true);
+          
+          lastAlertMinute.current = currentMinute;
+          
+          if (navigator.vibrate) {
+              navigator.vibrate([200, 100, 200, 100, 500]);
+          }
+
+          // Trigger AI Prediction immediately
+          fetchGeminiPrediction();
+
+          // Auto dismiss toast after 8 seconds
+          setTimeout(() => {
+              setAlertState(prev => ({ ...prev, active: false }));
+          }, 8000);
+      }
+
+  }, [liveMatch, statsHistory, marketChartData, showAlertPanel, fetchGeminiPrediction]);
 
 
   const handleRefresh = useCallback(async () => {
