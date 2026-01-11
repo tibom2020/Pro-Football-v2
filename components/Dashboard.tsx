@@ -342,6 +342,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     }
     return finalData;
   }, [homeOddsHistory]);
+
+  // Sort data by minute for the line chart
+  const sortedMarketChartData = useMemo(() => {
+      return [...marketChartData].sort((a, b) => a.minute - b.minute);
+  }, [marketChartData]);
+
+  const sortedHomeMarketChartData = useMemo(() => {
+      return [...homeMarketChartData].sort((a, b) => a.minute - b.minute);
+  }, [homeMarketChartData]);
   
   const paceHighlights = useMemo(() => {
     const sortedMinutes = Object.keys(statsHistory).map(Number).sort((a, b) => a - b);
@@ -701,6 +710,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                           <Scatter yAxisId="left" name="Thị trường" data={marketChartData} shape={<CustomCandle />}>{marketChartData.map((e, i) => (<Cell key={`c-${i}`} fill={e.color} />))}</Scatter>
+                          <Line yAxisId="left" type="stepAfter" data={sortedMarketChartData} dataKey="handicap" stroke="#ef4444" strokeWidth={1} dot={false} activeDot={false} opacity={0.7} /> 
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="homeApi" name="API Đội nhà" stroke="#2dd4bf" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowHome)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="awayApi" name="API Đội khách" stroke="#8b5cf6" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowAway)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                       </ComposedChart>
@@ -724,6 +734,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                           <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} shape={<CustomCandle />}>{homeMarketChartData.map((e, i) => (<Cell key={`c-${i}`} fill={e.color} />))}</Scatter>
+                          <Line yAxisId="left" type="stepAfter" data={sortedHomeMarketChartData} dataKey="handicap" stroke="#ef4444" strokeWidth={1} dot={false} activeDot={false} opacity={0.7} />
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="homeApi" name="API Đội nhà" stroke="#2dd4bf" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowHome)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="awayApi" name="API Đội khách" stroke="#8b5cf6" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowAway)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                       </ComposedChart>
