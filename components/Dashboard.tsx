@@ -658,15 +658,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             const pastTotal = calculateAPIScore(pastStats, 0) + calculateAPIScore(pastStats, 1);
             return currentTotal - pastTotal;
         };
+
+        // CORRECTED: Calculate Shot Cluster using DELTA (Difference), not sum of cumulative totals
         const getShotClusterScore = (minute: number, window: number) => {
-            const minT = Math.max(0, minute - window + 1);
-            let score = 0;
-            allTimes.filter(t => t >= minT && t <= minute).forEach(t => {
-                const s = statsHistory[t];
-                if (s) score += (s.on_target[0] + s.on_target[1]) * 3.0 + (s.off_target[0] + s.off_target[1]) * 1.0;
-            });
-            return score;
+             // We want stats from [minute - window] to [minute]
+             const currentStats = statsHistory[minute];
+             if (!currentStats) return 0;
+
+             const targetTime = minute - window;
+             // Find the stats snapshot closest to the start of the window (must be <= targetTime)
+             const pastTimes = allTimes.filter(t => t <= targetTime);
+             const pastTime = pastTimes.length > 0 ? Math.max(...pastTimes) : 0;
+             const pastStats = statsHistory[pastTime] || { on_target: [0,0], off_target: [0,0] }; // Defaults if start of match
+
+             // Calculate DELTA (New shots in the window)
+             const currentOnTarget = currentStats.on_target[0] + currentStats.on_target[1];
+             const pastOnTarget = (pastStats.on_target?.[0] || 0) + (pastStats.on_target?.[1] || 0);
+             const deltaOnTarget = Math.max(0, currentOnTarget - pastOnTarget);
+
+             const currentOffTarget = currentStats.off_target[0] + currentStats.off_target[1];
+             const pastOffTarget = (pastStats.off_target?.[0] || 0) + (pastStats.off_target?.[1] || 0);
+             const deltaOffTarget = Math.max(0, currentOffTarget - pastOffTarget);
+
+             // Weight: 3.0 for On Target, 1.0 for Off Target
+             return (deltaOnTarget * 3.0) + (deltaOffTarget * 1.0);
         };
+
         const getBubbleIntensity = (chartData: any[], minute: number, range: number) => {
             const minT = Math.max(0, minute - range);
             return chartData.filter(b => b.minute >= minT && b.minute <= minute && (b.colorName==='red' || b.highlight))
