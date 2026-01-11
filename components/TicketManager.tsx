@@ -173,21 +173,30 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
 
   const getStatusPillContent = (status: BetTicket['status']) => {
     switch(status) {
-        case 'pending': return { text: 'Đang chờ', className: "bg-yellow-100 text-yellow-800" };
-        case 'won': return { text: 'Thắng', className: "bg-green-100 text-green-800" };
-        case 'lost': return { text: 'Thua', className: "bg-red-100 text-red-800" };
-        case 'push': return { text: 'Hòa', className: "bg-gray-100 text-gray-800" };
-        case 'won_half': return { text: 'Thắng 1/2', className: "bg-green-100 text-green-800" };
-        case 'lost_half': return { text: 'Thua 1/2', className: "bg-red-100 text-red-800" };
+        case 'pending': return { text: 'Đang chờ', className: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300" };
+        case 'won': return { text: 'Thắng', className: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300" };
+        case 'lost': return { text: 'Thua', className: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300" };
+        case 'push': return { text: 'Hòa', className: "bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-gray-300" };
+        case 'won_half': return { text: 'Thắng 1/2', className: "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300" };
+        case 'lost_half': return { text: 'Thua 1/2', className: "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300" };
         default: return { text: '', className: 'bg-gray-100 text-gray-800' };
     }
   }
 
   return (
     <>
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mt-4">
+      {showChecklist && (
+        <AntiEmotionChecklist 
+          onConfirm={confirmAddTicket} 
+          onCancel={() => setShowChecklist(false)} 
+          betType={betType} 
+          handicap={currentHandicap} 
+        />
+      )}
+      
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-800 mt-4 transition-colors duration-300">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-sm font-bold text-gray-700">Hệ thống quản lý vé cược</h3>
+          <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300">Hệ thống quản lý vé cược</h3>
           <button 
             onClick={() => setShowForm(!showForm)}
             className="bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 hover:bg-blue-600 transition-colors"
@@ -198,14 +207,14 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
         </div>
 
         {showForm && (
-          <form onSubmit={handleInitiateAddTicket} className="bg-gray-50 p-4 rounded-lg mb-4 space-y-3 border border-gray-200">
+          <form onSubmit={handleInitiateAddTicket} className="bg-gray-50 dark:bg-slate-800 p-4 rounded-lg mb-4 space-y-3 border border-gray-200 dark:border-slate-700">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600">Loại cược</label>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Loại cược</label>
                 <select 
                   value={betType} 
                   onChange={e => setBetType(e.target.value as any)}
-                  className="w-full mt-1 p-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full mt-1 p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-white rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option>Tài</option>
                   <option>Xỉu</option>
@@ -218,100 +227,100 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Kèo hiện tại</label>
-                <input type="text" readOnly value={currentHandicap || 'N/A'} className="w-full mt-1 p-2 border bg-gray-200 border-gray-300 rounded-md text-sm cursor-not-allowed" />
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Kèo hiện tại</label>
+                <input type="text" readOnly value={currentHandicap || 'N/A'} className="w-full mt-1 p-2 border bg-gray-200 dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-gray-800 dark:text-white rounded-md text-sm cursor-not-allowed" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600">Tiền cược</label>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Tiền cược</label>
                 <input 
                   type="number" 
                   placeholder="VD: 100" 
                   value={stake}
                   onChange={e => setStake(e.target.value)}
-                  className="w-full mt-1 p-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full mt-1 p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-white rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">Tỷ lệ cược</label>
+                <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Tỷ lệ cược</label>
                 <input 
                   type="number" 
                   step="0.01" 
                   placeholder="VD: 1.95" 
                   value={odds}
                   onChange={e => setOdds(e.target.value)}
-                  className="w-full mt-1 p-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full mt-1 p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-white rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">Ghi chú (tùy chọn)</label>
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-400">Ghi chú (tùy chọn)</label>
               <input 
                   type="text" 
                   placeholder="Lý do vào cược..." 
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  className="w-full mt-1 p-2 border border-gray-300 rounded-md text-sm"
+                  className="w-full mt-1 p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-800 dark:text-white rounded-md text-sm outline-none focus:ring-1 focus:ring-blue-500"
                 />
             </div>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300">Hủy</button>
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-semibold rounded-md text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-slate-700 hover:bg-gray-300 dark:hover:bg-slate-600">Hủy</button>
               <button type="submit" className="px-4 py-2 text-sm font-semibold rounded-md text-white bg-blue-600 hover:bg-blue-700 shadow-sm">Tiếp tục</button>
             </div>
           </form>
         )}
 
         {tickets.length === 0 ? (
-          <p className="text-center text-xs text-gray-500 py-4">Chưa có vé cược nào cho trận này.</p>
+          <p className="text-center text-xs text-gray-500 dark:text-gray-400 py-4">Chưa có vé cược nào cho trận này.</p>
         ) : (
           <div className="space-y-3">
             {tickets.map(ticket => {
               const pill = getStatusPillContent(ticket.status);
               return (
-                <div key={ticket.id} className="border border-gray-200 rounded-lg p-3">
+                <div key={ticket.id} className="border border-gray-200 dark:border-slate-700 rounded-lg p-3 bg-white dark:bg-slate-900">
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="font-bold text-gray-800">{ticket.betType} {ticket.handicap}</div>
-                      <div className="text-xs text-gray-500">@{ticket.minute}' {ticket.scoreAtBet ? `(${ticket.scoreAtBet})` : ''} - Tỷ lệ {ticket.odds.toFixed(2)}</div>
+                      <div className="font-bold text-gray-800 dark:text-white">{ticket.betType} {ticket.handicap}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">@{ticket.minute}' {ticket.scoreAtBet ? `(${ticket.scoreAtBet})` : ''} - Tỷ lệ {ticket.odds.toFixed(2)}</div>
                     </div>
                     <div className={`text-xs font-bold px-2 py-0.5 rounded-full ${pill.className}`}>
                       {pill.text}
                     </div>
                   </div>
-                  <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
+                  <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100 dark:border-slate-800">
                     <div className="text-sm">
-                      <div>Cược: <span className="font-semibold text-gray-700">{ticket.stake.toLocaleString()}</span></div>
+                      <div className="text-gray-600 dark:text-gray-400">Cược: <span className="font-semibold text-gray-700 dark:text-gray-200">{ticket.stake.toLocaleString()}</span></div>
                       {ticket.status === 'pending' && (
-                        <div className="text-xs text-gray-500">Thắng tiềm năng: {(ticket.stake * ticket.odds).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Thắng tiềm năng: {(ticket.stake * ticket.odds).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                       )}
                       {ticket.status === 'won' && (
-                        <div className="text-xs font-bold text-green-600">Lãi: +{(ticket.stake * ticket.odds - ticket.stake).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div className="text-xs font-bold text-green-600 dark:text-green-400">Lãi: +{(ticket.stake * ticket.odds - ticket.stake).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                       )}
                       {ticket.status === 'lost' && (
-                        <div className="text-xs font-bold text-red-600">Lỗ: -{ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div className="text-xs font-bold text-red-600 dark:text-red-400">Lỗ: -{ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                       )}
                       {ticket.status === 'push' && (
-                        <div className="text-xs font-bold text-gray-600">Hoàn tiền: {ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div className="text-xs font-bold text-gray-600 dark:text-gray-400">Hoàn tiền: {ticket.stake.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                       )}
                       {ticket.status === 'won_half' && (
-                        <div className="text-xs font-bold text-green-600">Lãi: +{((ticket.stake * ticket.odds - ticket.stake) / 2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div className="text-xs font-bold text-green-600 dark:text-green-400">Lãi: +{((ticket.stake * ticket.odds - ticket.stake) / 2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                       )}
                       {ticket.status === 'lost_half' && (
-                        <div className="text-xs font-bold text-red-600">Lỗ: -{(ticket.stake / 2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        <div className="text-xs font-bold text-red-600 dark:text-red-400">Lỗ: -{(ticket.stake / 2).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                       )}
                     </div>
                     {ticket.status === 'pending' ? (
                       <div className="flex gap-2 items-center flex-wrap justify-end">
-                        <button onClick={() => handleUpdateStatus(ticket.id, 'won_half')} className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-md hover:bg-green-200 font-semibold" title="Thắng nửa">Thắng ½</button>
-                        <button onClick={() => handleUpdateStatus(ticket.id, 'lost_half')} className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-md hover:bg-red-200 font-semibold" title="Thua nửa">Thua ½</button>
-                        <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 text-green-600 rounded-full hover:bg-green-200" title="Thắng"><CheckCircle className="w-4 h-4" /></button>
-                        <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200" title="Thua"><XCircle className="w-4 h-4" /></button>
-                        <button onClick={() => handleUpdateStatus(ticket.id, 'push')} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200" title="Hòa"><MinusCircle className="w-4 h-4" /></button>
-                        <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200" title="Xóa"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => handleUpdateStatus(ticket.id, 'won_half')} className="px-2 py-1 text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-md hover:bg-green-200 dark:hover:bg-green-800/40 font-semibold" title="Thắng nửa">Thắng ½</button>
+                        <button onClick={() => handleUpdateStatus(ticket.id, 'lost_half')} className="px-2 py-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-md hover:bg-red-200 dark:hover:bg-red-800/40 font-semibold" title="Thua nửa">Thua ½</button>
+                        <button onClick={() => handleUpdateStatus(ticket.id, 'won')} className="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full hover:bg-green-200 dark:hover:bg-green-800/40" title="Thắng"><CheckCircle className="w-4 h-4" /></button>
+                        <button onClick={() => handleUpdateStatus(ticket.id, 'lost')} className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full hover:bg-red-200 dark:hover:bg-red-800/40" title="Thua"><XCircle className="w-4 h-4" /></button>
+                        <button onClick={() => handleUpdateStatus(ticket.id, 'push')} className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600" title="Hòa"><MinusCircle className="w-4 h-4" /></button>
+                        <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600" title="Xóa"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     ) : (
-                      <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => handleDeleteTicket(ticket.id)} className="p-2 bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600"><Trash2 className="w-4 h-4" /></button>
                     )}
                   </div>
                 </div>
@@ -321,34 +330,24 @@ export const TicketManager: React.FC<TicketManagerProps> = ({ match, latestOverO
         )}
 
         {tickets.length > 0 && (
-          <div className="mt-4 pt-3 border-t border-dashed space-y-1 text-sm">
+          <div className="mt-4 pt-3 border-t border-dashed border-gray-300 dark:border-slate-700 space-y-1 text-sm">
               <div className="flex justify-between">
-                  <span className="font-semibold text-gray-600">Tổng cược đã đặt:</span>
-                  <span className="font-bold text-gray-800">{summary.totalStake.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-600 dark:text-gray-400">Tổng cược đã đặt:</span>
+                  <span className="font-bold text-gray-800 dark:text-gray-200">{summary.totalStake.toLocaleString()}</span>
               </div>
               <div className="flex justify-between">
-                  <span className="font-semibold text-gray-600">Tổng cược đang chờ:</span>
-                  <span className="font-bold text-yellow-600">{summary.pendingStake.toLocaleString()}</span>
+                  <span className="font-semibold text-gray-600 dark:text-gray-400">Tổng cược đang chờ:</span>
+                  <span className="font-bold text-yellow-600 dark:text-yellow-400">{summary.pendingStake.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between">
-                  <span className="font-semibold text-gray-600">Lãi/Lỗ đã quyết:</span>
-                  <span className={`font-bold ${summary.totalPL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {summary.totalPL >= 0 ? '+' : ''}{summary.totalPL.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+              <div className="flex justify-between text-base border-t border-gray-100 dark:border-slate-800 pt-1 mt-1">
+                  <span className="font-bold text-gray-800 dark:text-white">Lãi/Lỗ tạm tính:</span>
+                  <span className={`font-black ${summary.totalPL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {summary.totalPL > 0 ? '+' : ''}{summary.totalPL.toLocaleString(undefined, {minimumFractionDigits: 2})}
                   </span>
               </div>
           </div>
         )}
       </div>
-
-      {/* Checklist Modal */}
-      {showChecklist && (
-        <AntiEmotionChecklist 
-            betType={betType} 
-            handicap={currentHandicap} 
-            onConfirm={confirmAddTicket} 
-            onCancel={() => setShowChecklist(false)} 
-        />
-      )}
     </>
   );
 };

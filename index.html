@@ -10,7 +10,9 @@
     <title>Pro Football Analytics</title>
     <style>
       body {
-        background-color: #f3f4f6;
+        /* Default background color handled by Tailwind classes in App.tsx, 
+           but setting a dark fallback here helps prevent white flash */
+        background-color: #0f172a; 
         -webkit-tap-highlight-color: transparent;
         /* Safe area handling for iPhone X and newer */
         padding-bottom: env(safe-area-inset-bottom);

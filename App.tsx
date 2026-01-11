@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MatchList } from './components/MatchList';
 import { Dashboard } from './components/Dashboard';
@@ -5,7 +6,7 @@ import { BetHistory } from './components/BetHistory';
 import { MatchHistory } from './components/MatchHistory'; 
 import { MatchInfo, ProcessedStats } from './types';
 import { getInPlayEvents, getMatchDetails, parseStats } from './services/api';
-import { KeyRound, ShieldCheck, RefreshCw, List, History, ClipboardList, Bell } from 'lucide-react';
+import { KeyRound, ShieldCheck, RefreshCw, List, History, ClipboardList, Bell, Moon, Sun } from 'lucide-react';
 
 const App = () => {
   const REFRESH_INTERVAL_MS = 60000; 
@@ -20,12 +21,38 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mainView, setMainView] = useState<'matches' | 'betHistory' | 'matchHistory'>('matches');
   
+  // Theme State
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
   // Favorites State
   const [favorites, setFavorites] = useState<string[]>([]);
-  // Store previous stats for favorites to calculate momentum delta in background
   const prevFavoritesStats = useRef<Record<string, ProcessedStats>>({});
 
-  // Load token and favorites from local storage on mount
+  // Initialize Theme
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+        setTheme(savedTheme);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        setTheme('dark');
+    }
+  }, []);
+
+  // Apply Theme Class
+  useEffect(() => {
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  // Load token and favorites
   useEffect(() => {
     const savedToken = localStorage.getItem('b365_token');
     if (savedToken) {
@@ -37,16 +64,13 @@ const App = () => {
         setFavorites(JSON.parse(savedFavs));
     }
     
-    // Request Notification Permission on load if possible
     if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission();
     }
   }, []);
 
   const handleToggleFavorite = (matchId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent opening the match
-    
-    // Request permission on first interaction if needed
+    e.stopPropagation();
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
@@ -64,12 +88,10 @@ const App = () => {
   const checkFavoritesForAlerts = useCallback(async () => {
     if (favorites.length === 0 || !hasToken) return;
 
-    // Process sequentially to avoid rate limits
     for (const matchId of favorites) {
         try {
-            // Check if match is still live in the main list
             const isLive = events.find(e => e.id === matchId);
-            if (!isLive) continue; // Match might have ended
+            if (!isLive) continue;
 
             const details = await getMatchDetails(token, matchId);
             if (!details || !details.stats) continue;
@@ -78,7 +100,6 @@ const App = () => {
             const prevStats = prevFavoritesStats.current[matchId];
 
             if (prevStats) {
-                // Calculate Deltas
                 const currentDA = currentStats.dangerous_attacks[0] + currentStats.dangerous_attacks[1];
                 const prevDA = prevStats.dangerous_attacks[0] + prevStats.dangerous_attacks[1];
                 const daDelta = currentDA - prevDA;
@@ -87,22 +108,17 @@ const App = () => {
                 const prevShots = (prevStats.on_target[0] + prevStats.on_target[1]) + (prevStats.off_target[0] + prevStats.off_target[1]);
                 const shotsDelta = currentShots - prevShots;
 
-                // Thresholds for Notification (slightly higher to avoid spam)
                 if (daDelta >= 4 || shotsDelta >= 2) {
                     const title = `⚠️ ${details.home.name} vs ${details.away.name}`;
                     const body = `CẢNH BÁO ÁP LỰC: DA +${daDelta}, Sút +${shotsDelta} trong phiên vừa qua!`;
-                    
                     sendNotification(title, body);
                 }
             }
-            // Update ref
             prevFavoritesStats.current[matchId] = currentStats;
 
         } catch (e) {
             console.error(`Background check failed for ${matchId}`, e);
         }
-        
-        // Small delay between checks
         await new Promise(r => setTimeout(r, 2000));
     }
   }, [favorites, token, hasToken, events]);
@@ -111,20 +127,16 @@ const App = () => {
     if (!('Notification' in window)) return;
 
     if (Notification.permission === 'granted') {
-        // Create notification
         try {
-            // Check for Service Worker Registration for iOS PWA support
             navigator.serviceWorker.getRegistration().then(registration => {
                 if (registration) {
-                    // Use Service Worker if available (better for PWA)
                      registration.showNotification(title, {
                         body,
-                        icon: '/vite.svg', // Replace with your app icon
+                        icon: '/vite.svg',
                         tag: 'match-alert',
                         vibrate: [200, 100, 200]
                     } as any);
                 } else {
-                    // Fallback to standard web notification
                     new Notification(title, { body, icon: '/vite.svg' });
                 }
             });
@@ -146,7 +158,6 @@ const App = () => {
   }, [hasToken, favorites, checkFavoritesForAlerts]);
 
 
-  // Callable function to fetch events
   const fetchEventsData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -154,13 +165,13 @@ const App = () => {
       const data = await getInPlayEvents(token);
       setEvents(data);
       if (token === 'DEMO_MODE' && data.length === 0) {
-        setError('Chế độ Demo: Không tìm thấy trận đấu giả lập. Có thể do lỗi tải dữ liệu demo.');
+        setError('Chế độ Demo: Không tìm thấy trận đấu giả lập.');
       } else if (data.length === 0 && token !== 'DEMO_MODE') {
-        setError('Không tìm thấy trận đấu trực tiếp. Vui lòng kiểm tra Token API của bạn hoặc thử lại sau.');
+        setError('Không tìm thấy trận đấu trực tiếp.');
       }
     } catch (err: any) {
       if (err.message.includes('429')) {
-         setError("Giới hạn tần suất của Proxy đã đạt. Vui lòng kiểm tra cấu hình Rate Limiter của Cloudflare Worker và thử lại sau 20-40 giây.");
+         setError("Giới hạn tần suất của Proxy đã đạt.");
       } else if (err.message.includes('Lỗi mạng hoặc CORS')) {
         setError(err.message); 
       }
@@ -173,10 +184,8 @@ const App = () => {
     }
   }, [token]);
 
-  // Fetch events only once when hasToken becomes true, and set up interval
   useEffect(() => {
     if (!hasToken) return;
-    
     let isMounted = true;
     let intervalId: number | undefined;
     
@@ -190,9 +199,7 @@ const App = () => {
         }, REFRESH_INTERVAL_MS);
       }
     };
-
     startFetching();
-
     return () => {
       isMounted = false;
       if (intervalId !== undefined) {
@@ -238,42 +245,46 @@ const App = () => {
 
   const getHeaderText = () => {
     switch(mainView) {
-      case 'matches': return 'Trận đấu trực tiếp';
-      case 'betHistory': return 'Lịch sử cược';
-      case 'matchHistory': return 'Lịch sử xem';
+      case 'matches': return 'Trực tiếp';
+      case 'betHistory': return 'Vé cược';
+      case 'matchHistory': return 'Đã xem';
       default: return 'Live Matches';
     }
   };
 
   if (!hasToken) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-900 to-slate-800 text-white">
-        <div className="bg-white/10 p-4 rounded-full mb-6 backdrop-blur-md">
-            <ShieldCheck className="w-12 h-12 text-blue-400" />
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-900 text-white relative overflow-hidden">
+        {/* Abstract Background Shapes */}
+        <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-blue-600/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-80 h-80 bg-purple-600/20 rounded-full blur-3xl"></div>
+
+        <div className="bg-slate-800/50 p-6 rounded-full mb-6 backdrop-blur-md border border-white/10 shadow-2xl">
+            <ShieldCheck className="w-16 h-16 text-blue-400" />
         </div>
-        <h1 className="text-2xl font-bold mb-2">Pro Analytics Access</h1>
-        <p className="text-gray-400 text-center mb-8 text-sm">Enter your B365 API Token to access real-time match data and analysis tools.</p>
+        <h1 className="text-3xl font-black mb-2 tracking-tight">Pro Analytics</h1>
+        <p className="text-slate-400 text-center mb-8 text-sm max-w-xs">Hệ thống phân tích bóng đá chuyên sâu với dữ liệu thời gian thực và AI.</p>
         
-        <form onSubmit={handleTokenSubmit} className="w-full max-w-sm space-y-4">
-          <div className="relative">
-            <KeyRound className="absolute left-3 top-3.5 text-gray-500 w-5 h-5" />
+        <form onSubmit={handleTokenSubmit} className="w-full max-w-sm space-y-4 relative z-10">
+          <div className="relative group">
+            <KeyRound className="absolute left-3 top-3.5 text-slate-500 group-focus-within:text-blue-400 transition-colors w-5 h-5" />
             <input 
               type="text" 
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Paste API Token here..." 
-              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none text-white placeholder-gray-500 transition-all"
+              placeholder="Nhập API Token..." 
+              className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-slate-950/50 border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-white placeholder-slate-600 transition-all shadow-inner"
             />
           </div>
           <button 
             type="submit" 
             disabled={token.length < 5}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-blue-900/50"
+            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-900/40 hover:scale-[1.02] active:scale-[0.98]"
           >
-            Authenticate
+            Đăng nhập
           </button>
-          <div className="text-center mt-4">
-             <a href="#" onClick={(e) => { e.preventDefault(); setToken("DEMO_MODE"); setHasToken(true); }} className="text-xs text-gray-500 underline">Try Demo Mode</a>
+          <div className="text-center mt-6">
+             <a href="#" onClick={(e) => { e.preventDefault(); setToken("DEMO_MODE"); setHasToken(true); }} className="text-xs text-slate-500 hover:text-blue-400 transition-colors">Dùng thử chế độ Demo</a>
           </div>
         </form>
       </div>
@@ -291,55 +302,40 @@ const App = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 max-w-md mx-auto shadow-2xl overflow-hidden">
-      <div className="bg-white px-5 py-4 sticky top-0 z-10 border-b border-gray-100 flex justify-between items-center">
-        <h1 className="text-xl font-black text-slate-800 tracking-tight">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 max-w-md mx-auto shadow-2xl overflow-hidden transition-colors duration-300">
+      <div className="bg-white dark:bg-slate-900 px-5 py-4 sticky top-0 z-10 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center transition-colors duration-300">
+        <h1 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
           {getHeaderText()}
         </h1>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
+            <button 
+                onClick={toggleTheme} 
+                className="p-2 text-slate-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </button>
+
             {mainView === 'matches' && (
-              <button onClick={fetchEventsData} disabled={loading} className="p-2 text-gray-600 hover:bg-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={fetchEventsData} disabled={loading} className="p-2 text-slate-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full disabled:opacity-50">
                 <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
               </button>
             )}
-            <div className="flex items-center bg-gray-100 rounded-full p-1">
-              <button 
-                onClick={() => setMainView('matches')} 
-                className={`p-1.5 rounded-full transition-colors ${mainView === 'matches' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-                aria-label="Danh sách trận đấu"
-              >
-                <List className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => setMainView('betHistory')} 
-                className={`p-1.5 rounded-full transition-colors ${mainView === 'betHistory' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-                aria-label="Lịch sử cược"
-              >
-                <History className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => setMainView('matchHistory')} 
-                className={`p-1.5 rounded-full transition-colors ${mainView === 'matchHistory' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'}`}
-                aria-label="Lịch sử xem"
-              >
-                <ClipboardList className="w-5 h-5" />
-              </button>
-            </div>
-            <button onClick={handleLogout} className="text-xs text-red-500 font-medium">Logout</button>
+            
+            <button onClick={handleLogout} className="text-xs text-red-500 font-medium ml-1">Thoát</button>
         </div>
       </div>
       
-      <div className="p-4">
+      <div className="p-4 pb-24">
         {/* Permission Prompt Banner */}
         {hasToken && favorites.length > 0 && Notification.permission !== 'granted' && (
-             <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4 flex items-center justify-between">
+             <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 p-3 rounded-lg mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs text-blue-800">Bật thông báo để nhận cảnh báo chạy nền.</span>
+                    <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs text-blue-800 dark:text-blue-200">Bật thông báo để nhận cảnh báo chạy nền.</span>
                 </div>
                 <button 
                     onClick={() => Notification.requestPermission()} 
-                    className="text-xs bg-blue-600 text-white px-3 py-1 rounded-md font-bold"
+                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md font-bold transition-colors"
                 >
                     Bật
                 </button>
@@ -347,14 +343,15 @@ const App = () => {
         )}
 
         {error && mainView === 'matches' && (
-            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded-md" role="alert">
+            <div className="bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-4 rounded-md" role="alert">
                 <p className="font-bold">Lỗi</p>
                 <p>{error}</p>
-                <p className="mt-2 text-xs text-red-600">
-                  Vui lòng kiểm tra Token API của bạn hoặc thử lại sau vài phút nếu đây là lỗi giới hạn tần suất.
+                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                  Vui lòng kiểm tra Token API hoặc thử lại sau.
                 </p>
             </div>
         )}
+        
         {mainView === 'matches' && (
           <MatchList 
             events={filteredEvents} 
@@ -368,6 +365,33 @@ const App = () => {
         )}
         {mainView === 'betHistory' && <BetHistory />}
         {mainView === 'matchHistory' && <MatchHistory onSelectMatch={handleSelectMatch} />}
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 p-3 max-w-md mx-auto z-20">
+          <div className="flex justify-around items-center">
+              <button 
+                onClick={() => setMainView('matches')} 
+                className={`flex flex-col items-center gap-1 ${mainView === 'matches' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`}
+              >
+                <List className="w-6 h-6" />
+                <span className="text-[10px] font-medium">Trực tiếp</span>
+              </button>
+              <button 
+                onClick={() => setMainView('betHistory')} 
+                className={`flex flex-col items-center gap-1 ${mainView === 'betHistory' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`}
+              >
+                <History className="w-6 h-6" />
+                <span className="text-[10px] font-medium">Lịch sử cược</span>
+              </button>
+              <button 
+                onClick={() => setMainView('matchHistory')} 
+                className={`flex flex-col items-center gap-1 ${mainView === 'matchHistory' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`}
+              >
+                <ClipboardList className="w-6 h-6" />
+                <span className="text-[10px] font-medium">Đã xem</span>
+              </button>
+          </div>
       </div>
     </div>
   );

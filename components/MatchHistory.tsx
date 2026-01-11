@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { MatchInfo, ViewedMatchHistory, HistoryItem } from '../types';
 import { Clock, ChevronRight, Trash2 } from 'lucide-react';
@@ -21,7 +22,6 @@ export const MatchHistory: React.FC<MatchHistoryProps> = ({ onSelectMatch }) => 
   }, []);
 
   const sortedHistory = useMemo(() => {
-    // FIX: Explicitly type `a` and `b` to resolve TypeScript error where it infers them as `unknown`.
     return Object.values(history).sort((a: HistoryItem, b: HistoryItem) => b.viewedAt - a.viewedAt);
   }, [history]);
   
@@ -34,7 +34,7 @@ export const MatchHistory: React.FC<MatchHistoryProps> = ({ onSelectMatch }) => 
 
   if (sortedHistory.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="p-8 text-center text-gray-500 dark:text-gray-400">
         <p className="font-semibold">Lịch sử trống</p>
         <p className="text-sm mt-1">Các trận đấu bạn xem phân tích sẽ được lưu tại đây.</p>
       </div>
@@ -46,7 +46,7 @@ export const MatchHistory: React.FC<MatchHistoryProps> = ({ onSelectMatch }) => 
        <div className="flex justify-end mb-4">
             <button
                 onClick={handleClearHistory}
-                className="flex items-center gap-1.5 text-xs text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md font-semibold transition-colors"
+                className="flex items-center gap-1.5 text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 px-3 py-1.5 rounded-md font-semibold transition-colors"
             >
                 <Trash2 className="w-3.5 h-3.5" />
                 Xóa lịch sử
@@ -58,13 +58,13 @@ export const MatchHistory: React.FC<MatchHistoryProps> = ({ onSelectMatch }) => 
           <div 
             key={match.id}
             onClick={() => onSelectMatch(match)}
-            className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 active:bg-gray-50 transition-colors cursor-pointer"
+            className="bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-800 active:bg-gray-50 dark:active:bg-slate-800 transition-colors cursor-pointer"
           >
             <div className="flex justify-between items-start mb-3">
-              <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-md truncate max-w-[70%]">
+              <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md truncate max-w-[70%]">
                 {match.league.name}
               </span>
-              <div className={`flex items-center text-xs font-bold ${isLive ? 'text-red-500' : 'text-gray-500'}`}>
+              <div className={`flex items-center text-xs font-bold ${isLive ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
                 <Clock className="w-3 h-3 mr-1" />
                 {isLive ? `${match.timer?.tm || match.time}'` : 'FT'}
               </div>
@@ -72,19 +72,19 @@ export const MatchHistory: React.FC<MatchHistoryProps> = ({ onSelectMatch }) => 
 
             <div className="flex items-center justify-between">
               <div className="flex-1 text-right pr-3">
-                <div className="font-bold text-gray-900 leading-tight">{match.home.name}</div>
+                <div className="font-bold text-gray-900 dark:text-white leading-tight">{match.home.name}</div>
               </div>
               
-              <div className="bg-gray-100 px-3 py-1 rounded-lg font-mono font-bold text-lg text-gray-800 tracking-widest">
+              <div className="bg-gray-100 dark:bg-slate-800 px-3 py-1 rounded-lg font-mono font-bold text-lg text-gray-800 dark:text-gray-200 tracking-widest border border-gray-200 dark:border-slate-700">
                 {match.ss || "0-0"}
               </div>
 
               <div className="flex-1 text-left pl-3">
-                <div className="font-bold text-gray-900 leading-tight">{match.away.name}</div>
+                <div className="font-bold text-gray-900 dark:text-white leading-tight">{match.away.name}</div>
               </div>
             </div>
             
-            <div className="mt-3 flex justify-between items-center text-xs text-gray-400">
+            <div className="mt-3 flex justify-between items-center text-xs text-gray-400 dark:text-gray-500">
                 <span>
                     Viewed: {new Date(viewedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                 </span>

@@ -31,22 +31,22 @@ export const AntiEmotionChecklist: React.FC<AntiEmotionChecklistProps> = ({ onCo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden transform transition-all scale-100">
         
         {/* Header */}
-        <div className="bg-slate-50 p-4 border-b border-gray-100 flex items-center gap-3">
-          <div className="p-2 bg-blue-100 text-blue-600 rounded-full">
+        <div className="bg-slate-50 dark:bg-slate-900/50 p-4 border-b border-gray-100 dark:border-slate-700 flex items-center gap-3">
+          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
             <BrainCircuit className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-bold text-gray-800 text-lg">Kiểm tra kỷ luật</h3>
-            <p className="text-xs text-gray-500">Dừng lại 3 giây trước khi quyết định</p>
+            <h3 className="font-bold text-gray-800 dark:text-white text-lg">Kiểm tra kỷ luật</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Dừng lại 3 giây trước khi quyết định</p>
           </div>
         </div>
 
         {/* Content */}
         <div className="p-5 space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-800 font-medium text-center">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-200 font-medium text-center">
             Bạn đang định vào: <span className="font-bold">{betType} {handicap}</span>
           </div>
 
@@ -56,12 +56,12 @@ export const AntiEmotionChecklist: React.FC<AntiEmotionChecklistProps> = ({ onCo
                 key={idx} 
                 className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
                   checks[idx] 
-                    ? 'bg-green-50 border-green-200 shadow-sm' 
-                    : 'bg-white border-gray-200 hover:bg-gray-50'
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-900/30 shadow-sm' 
+                    : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600/80'
                 }`}
               >
                 <div className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
-                    checks[idx] ? 'bg-green-500 border-green-500' : 'bg-white border-gray-300'
+                    checks[idx] ? 'bg-green-500 border-green-500' : 'bg-white dark:bg-slate-600 border-gray-300 dark:border-slate-500'
                 }`}>
                     {checks[idx] && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                 </div>
@@ -71,7 +71,7 @@ export const AntiEmotionChecklist: React.FC<AntiEmotionChecklistProps> = ({ onCo
                   checked={checks[idx]} 
                   onChange={() => handleCheck(idx)}
                 />
-                <span className={`text-sm leading-snug ${checks[idx] ? 'text-green-900 font-medium' : 'text-gray-600'}`}>
+                <span className={`text-sm leading-snug ${checks[idx] ? 'text-green-900 dark:text-green-300 font-medium' : 'text-gray-600 dark:text-gray-300'}`}>
                   {q}
                 </span>
               </label>
@@ -80,10 +80,10 @@ export const AntiEmotionChecklist: React.FC<AntiEmotionChecklistProps> = ({ onCo
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-gray-50 flex gap-3">
+        <div className="p-4 bg-gray-50 dark:bg-slate-900/50 flex gap-3">
           <button 
             onClick={onCancel}
-            className="flex-1 py-3 px-4 bg-white border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-100 transition-colors"
+            className="flex-1 py-3 px-4 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-100 dark:hover:bg-slate-600 transition-colors"
           >
             Hủy bỏ
           </button>
@@ -92,8 +92,8 @@ export const AntiEmotionChecklist: React.FC<AntiEmotionChecklistProps> = ({ onCo
             disabled={!canConfirm}
             className={`flex-1 py-3 px-4 font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg ${
               canConfirm 
-                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200' 
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200 dark:shadow-none' 
+                : 'bg-gray-200 dark:bg-slate-600 text-gray-400 dark:text-slate-400 cursor-not-allowed shadow-none'
             }`}
           >
             {canConfirm ? (
