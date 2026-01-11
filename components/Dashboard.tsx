@@ -358,6 +358,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
     for (let i = 1; i < sortedMinutes.length; i++) {
         const currMin = sortedMinutes[i];
         const prevMin = sortedMinutes[i-1];
+        
+        // Skip highlights if gap is too big (e.g. initial load)
+        if (currMin - prevMin > 5) continue;
+        
         const curr = statsHistory[currMin];
         const prev = statsHistory[prevMin];
         if (!curr || !prev) continue;
@@ -429,13 +433,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
         const currentLatestHomeOdds = tempHomeOddsHistory.length > 0 ? tempHomeOddsHistory[tempHomeOddsHistory.length - 1] : null;
 
         const allTimes = Object.keys(statsHistory).map(Number).sort((a,b)=>a-b);
+        
+        // --- Improved Momentum Logic for AI ---
         const getAPIMomentumAt = (minute: number, window: number) => {
             if (!currentParsedStats) return 0;
-            const currentTotal = calculateAPIScore(currentParsedStats, 0) + calculateAPIScore(currentParsedStats, 1);
-            const pastMinute = Math.max(0, minute - window);
-            const pastTimes = allTimes.filter(t => t <= pastMinute);
-            const pastTime = pastTimes.length > 0 ? Math.max(...pastTimes) : (allTimes[0] || 0);
+            const targetTime = minute - window;
+            const sortedPastTimes = allTimes.filter(t => t <= targetTime).sort((a,b) => b-a);
+            
+            // Handle edge case: Start of match
+            if (sortedPastTimes.length === 0) {
+                 // If we are late in the match but no history, return 0 (invalid calculation)
+                 if (minute > window + 2) return 0;
+                 // Else implies comparing to 0 (start)
+                 return calculateAPIScore(currentParsedStats, 0) + calculateAPIScore(currentParsedStats, 1);
+            }
+
+            const pastTime = sortedPastTimes[0];
+            
+            // Data Gap Check: If data gap > window + 5, implies fresh load late in match
+            if (minute - pastTime > window + 5) return 0;
+
             const pastStats = statsHistory[pastTime] || { attacks:[0,0], dangerous_attacks:[0,0], on_target:[0,0], off_target:[0,0], corners:[0,0], yellowcards:[0,0], redcards:[0,0] };
+            
+            const currentTotal = calculateAPIScore(currentParsedStats, 0) + calculateAPIScore(currentParsedStats, 1);
             const pastTotal = calculateAPIScore(pastStats, 0) + calculateAPIScore(pastStats, 1);
             return currentTotal - pastTotal;
         };
@@ -444,8 +464,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
              const currentStats = statsHistory[minute];
              if (!currentStats) return 0;
              const targetTime = minute - window;
-             const pastTimes = allTimes.filter(t => t <= targetTime);
-             const pastTime = pastTimes.length > 0 ? Math.max(...pastTimes) : 0;
+             
+             // Find closest past time
+             const sortedPastTimes = allTimes.filter(t => t <= targetTime).sort((a,b) => b-a);
+             
+             if (sortedPastTimes.length === 0) {
+                 // If no history and match is already underway, we can't determine density.
+                 if (minute > window + 2) return 0;
+             }
+             
+             const pastTime = sortedPastTimes.length > 0 ? sortedPastTimes[0] : 0;
+             
+             // Data Gap Check: Prevent huge delta when loading app at min 80
+             if (minute - pastTime > window + 5) return 0;
+
              const pastStats = statsHistory[pastTime] || { on_target: [0,0], off_target: [0,0] };
              const deltaOnTarget = Math.max(0, (currentStats.on_target[0] + currentStats.on_target[1]) - ((pastStats.on_target?.[0] || 0) + (pastStats.on_target?.[1] || 0)));
              const deltaOffTarget = Math.max(0, (currentStats.off_target[0] + currentStats.off_target[1]) - ((pastStats.off_target?.[0] || 0) + (pastStats.off_target?.[1] || 0)));
@@ -495,6 +527,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       const pastMinuteIndex = sortedMinutes.findIndex(m => m <= currentMinute - 3);
       const pastStats = pastMinuteIndex !== -1 ? statsHistory[sortedMinutes[pastMinuteIndex]] : statsHistory[sortedMinutes[sortedMinutes.length - 1]];
       if (!currentStats || !pastStats) return;
+      
+      // Additional check: Ensure time gap isn't too large for the 3min alert
+      const timeGap = currentMinute - (sortedMinutes[pastMinuteIndex] || 0);
+      if (timeGap > 6) return; // If data is stale or jumpy, skip alert
+
       const deltaDA = (currentStats.dangerous_attacks[0] + currentStats.dangerous_attacks[1]) - (pastStats.dangerous_attacks[0] + pastStats.dangerous_attacks[1]);
       const deltaShots = ((currentStats.on_target[0] + currentStats.on_target[1]) + (currentStats.off_target[0] + currentStats.off_target[1])) - ((pastStats.on_target[0] + pastStats.on_target[1]) + (pastStats.off_target[0] + pastStats.off_target[1]));
       const recentOdds = marketChartData.filter(p => p.minute >= currentMinute - 5);
@@ -546,7 +583,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       if (allTimes.length < 2) return;
       const newShots: ShotEvent[] = [];
       for(let i=1; i<allTimes.length; i++) {
-          const t = allTimes[i]; const prevT = allTimes[i-1]; const stat = statsHistory[t]; const prevStat = statsHistory[prevT];
+          const t = allTimes[i]; const prevT = allTimes[i-1]; 
+          
+          // Fix visual clustering: If data gap > 5 mins (e.g. app inactive), skip generating shot balls for this interval
+          // This prevents a sudden cluster of balls appearing on the chart
+          if (t - prevT > 5) continue;
+          
+          const stat = statsHistory[t]; const prevStat = statsHistory[prevT];
           if(!stat || !prevStat) continue;
           const onTargetDelta = (stat.on_target[0] + stat.on_target[1]) - (prevStat.on_target[0] + prevStat.on_target[1]);
           const offTargetDelta = (stat.off_target[0] + stat.off_target[1]) - (prevStat.off_target[0] + prevStat.off_target[1]);
