@@ -75,15 +75,15 @@ const OddsColorLegent = () => (
             <span className="font-semibold text-gray-700">Thị trường:</span>
             <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                    <div className="w-1.5 h-3 bg-emerald-500 rounded-sm"></div>
                     <span>Tăng</span>
                 </div>
                 <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
+                    <div className="w-1.5 h-3 bg-slate-400 rounded-sm"></div>
                     <span>Ổn định</span>
                 </div>
                 <div className="flex items-center gap-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                    <div className="w-1.5 h-3 bg-red-500 rounded-sm"></div>
                     <span>Giảm (Hot)</span>
                 </div>
             </div>
@@ -130,6 +130,61 @@ const CustomApiDot = (props: any) => {
                 cy={cy} 
                 r={2} 
                 fill={stroke} 
+            />
+        </g>
+    );
+};
+
+// --- Custom Candle Component ---
+const CustomCandle = (props: any) => {
+    const { cx, cy, fill, payload } = props;
+    
+    const oddsValue = payload.over ?? payload.home ?? 1.9;
+    
+    // Calculate dynamic height to show difference between similar odds (e.g. 1.85 vs 1.95)
+    // We zoom in on the fluctuation by subtracting a base value.
+    let height = 12; // Minimum visible height
+
+    if (oddsValue > 1.4) {
+        // Decimal Odds Scenario (e.g., 1.80 - 2.10)
+        // Subtract base 1.6 to focus on the movement above that.
+        // Scale factor 100 makes 0.1 difference equal 10px.
+        const base = 1.6;
+        const diff = Math.max(0, oddsValue - base);
+        height = 10 + (diff * 100); 
+    } else {
+        // Asian/Malay Odds Scenario (e.g., 0.80 - 1.00)
+        const base = 0.6;
+        const diff = Math.max(0, oddsValue - base);
+        height = 10 + (diff * 100);
+    }
+
+    // Clamp height to prevent it from being too huge or too small
+    height = Math.max(10, Math.min(height, 55));
+
+    const width = payload.highlight ? 7 : 4; 
+
+    return (
+        <g>
+            {/* Wick (Râu nến) */}
+            <line 
+                x1={cx} y1={cy - height/2 - 4} 
+                x2={cx} y2={cy + height/2 + 4} 
+                stroke={fill} 
+                strokeWidth={1.5} 
+                opacity={0.6}
+            />
+            {/* Body (Thân nến) */}
+            <rect 
+                x={cx - width/2} 
+                y={cy - height/2} 
+                width={width} 
+                height={height} 
+                fill={fill} 
+                stroke={payload.highlight ? "#fff" : "none"}
+                strokeWidth={payload.highlight ? 1.5 : 0}
+                rx={1}
+                style={{ filter: payload.highlight ? 'drop-shadow(0px 0px 2px rgba(0,0,0,0.3))' : 'none' }}
             />
         </g>
     );
@@ -198,7 +253,6 @@ const HighlightBands = ({ highlights, containerWidth }: { highlights: Highlight[
                     backgroundColor: getHighlightColor(h.level) 
                 }}
             >
-                {/* Removed label to keep UI clean for pace indicators */}
             </div>
         ))}
     </>;
@@ -1082,17 +1136,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} fill="#8884d8">
+                          <Scatter yAxisId="left" name="Thị trường" data={marketChartData} shape={<CustomCandle />}>
                             {marketChartData.map((e, i) => (
                                 <Cell 
                                     key={`c-${i}`} 
                                     fill={e.color} 
-                                    stroke="white" 
-                                    strokeWidth={2}
-                                    style={{ 
-                                        transition: 'all 0.3s ease',
-                                        r: e.highlight ? 8 : 5 // Explicitly change radius for highlighted (pressure) points
-                                    }}
                                 />
                             ))}
                           </Scatter>
@@ -1156,17 +1204,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#9ca3af' }} tickLine={false} axisLine={{ stroke: '#e5e7eb' }} width={35} domain={['dataMin - 5', 'dataMax + 10']} />
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} fill="#8884d8">
+                          <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} shape={<CustomCandle />}>
                              {homeMarketChartData.map((e, i) => (
                                 <Cell 
                                     key={`c-${i}`} 
                                     fill={e.color} 
-                                    stroke="white" 
-                                    strokeWidth={2}
-                                    style={{ 
-                                        transition: 'all 0.3s ease',
-                                        r: e.highlight ? 8 : 5 
-                                    }}
                                 />
                             ))}
                           </Scatter>
