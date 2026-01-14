@@ -434,7 +434,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
 
         const allTimes = Object.keys(statsHistory).map(Number).sort((a,b)=>a-b);
         
-        // --- Improved Momentum Logic for AI ---
+        // --- Improved Momentum Logic for AI (Tighter Window) ---
         const getAPIMomentumAt = (minute: number, window: number) => {
             if (!currentParsedStats) return 0;
             const targetTime = minute - window;
@@ -442,16 +442,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
             
             // Handle edge case: Start of match
             if (sortedPastTimes.length === 0) {
-                 // If we are late in the match but no history, return 0 (invalid calculation)
                  if (minute > window + 2) return 0;
-                 // Else implies comparing to 0 (start)
                  return calculateAPIScore(currentParsedStats, 0) + calculateAPIScore(currentParsedStats, 1);
             }
 
             const pastTime = sortedPastTimes[0];
             
-            // Data Gap Check: If data gap > window + 5, implies fresh load late in match
-            if (minute - pastTime > window + 5) return 0;
+            // STRICTER Data Gap Check: Prevent using stale data > 7 mins old for a 5 min window
+            if (minute - pastTime > window + 2) return 0;
 
             const pastStats = statsHistory[pastTime] || { attacks:[0,0], dangerous_attacks:[0,0], on_target:[0,0], off_target:[0,0], corners:[0,0], yellowcards:[0,0], redcards:[0,0] };
             
@@ -469,14 +467,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
              const sortedPastTimes = allTimes.filter(t => t <= targetTime).sort((a,b) => b-a);
              
              if (sortedPastTimes.length === 0) {
-                 // If no history and match is already underway, we can't determine density.
                  if (minute > window + 2) return 0;
              }
              
              const pastTime = sortedPastTimes.length > 0 ? sortedPastTimes[0] : 0;
              
-             // Data Gap Check: Prevent huge delta when loading app at min 80
-             if (minute - pastTime > window + 5) return 0;
+             // STRICTER Data Gap Check
+             if (minute - pastTime > window + 2) return 0;
 
              const pastStats = statsHistory[pastTime] || { on_target: [0,0], off_target: [0,0] };
              const deltaOnTarget = Math.max(0, (currentStats.on_target[0] + currentStats.on_target[1]) - ((pastStats.on_target?.[0] || 0) + (pastStats.on_target?.[1] || 0)));
@@ -528,9 +525,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       const pastStats = pastMinuteIndex !== -1 ? statsHistory[sortedMinutes[pastMinuteIndex]] : statsHistory[sortedMinutes[sortedMinutes.length - 1]];
       if (!currentStats || !pastStats) return;
       
-      // Additional check: Ensure time gap isn't too large for the 3min alert
       const timeGap = currentMinute - (sortedMinutes[pastMinuteIndex] || 0);
-      if (timeGap > 6) return; // If data is stale or jumpy, skip alert
+      if (timeGap > 6) return;
 
       const deltaDA = (currentStats.dangerous_attacks[0] + currentStats.dangerous_attacks[1]) - (pastStats.dangerous_attacks[0] + pastStats.dangerous_attacks[1]);
       const deltaShots = ((currentStats.on_target[0] + currentStats.on_target[1]) + (currentStats.off_target[0] + currentStats.off_target[1])) - ((pastStats.on_target[0] + pastStats.on_target[1]) + (pastStats.off_target[0] + pastStats.off_target[1]));
@@ -585,8 +581,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
       for(let i=1; i<allTimes.length; i++) {
           const t = allTimes[i]; const prevT = allTimes[i-1]; 
           
-          // Fix visual clustering: If data gap > 5 mins (e.g. app inactive), skip generating shot balls for this interval
-          // This prevents a sudden cluster of balls appearing on the chart
           if (t - prevT > 5) continue;
           
           const stat = statsHistory[t]; const prevStat = statsHistory[prevT];
@@ -753,7 +747,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                           <Scatter yAxisId="left" name="Thị trường" data={marketChartData} shape={<CustomCandle />}>{marketChartData.map((e, i) => (<Cell key={`c-${i}`} fill={e.color} />))}</Scatter>
-                          <Line yAxisId="left" type="stepAfter" data={sortedMarketChartData} dataKey="handicap" stroke="#ef4444" strokeWidth={1} dot={false} activeDot={false} opacity={0.7} /> 
+                          <Line yAxisId="left" type="monotone" data={sortedMarketChartData} dataKey="handicap" stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} opacity={0.8} /> 
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="homeApi" name="API Đội nhà" stroke="#2dd4bf" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowHome)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="awayApi" name="API Đội khách" stroke="#8b5cf6" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowAway)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                       </ComposedChart>
@@ -777,7 +771,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, match, onBack }) =>
                           <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
                           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
                           <Scatter yAxisId="left" name="Thị trường" data={homeMarketChartData} shape={<CustomCandle />}>{homeMarketChartData.map((e, i) => (<Cell key={`c-${i}`} fill={e.color} />))}</Scatter>
-                          <Line yAxisId="left" type="stepAfter" data={sortedHomeMarketChartData} dataKey="handicap" stroke="#ef4444" strokeWidth={1} dot={false} activeDot={false} opacity={0.7} />
+                          <Line yAxisId="left" type="monotone" data={sortedHomeMarketChartData} dataKey="handicap" stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 4 }} opacity={0.8} />
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="homeApi" name="API Đội nhà" stroke="#2dd4bf" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowHome)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                           <Line yAxisId="right" type="monotone" data={apiChartData} dataKey="awayApi" name="API Đội khách" stroke="#8b5cf6" strokeWidth={4} dot={<CustomApiDot data={apiChartData} />} style={{ filter: 'url(#glowAway)' }} activeDot={{ r: 6, strokeWidth: 0 }} />
                       </ComposedChart>
